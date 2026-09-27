@@ -1,0 +1,33 @@
+{
+  "strategy": {
+    "signal_count": 5320,
+    "hit_rate": 0.48890977443609024,
+    "label_hit_rate": 0.2674812030075188,
+    "avg_excess_gross": 0.0007537834919268069,
+    "avg_excess_net": -0.00024621650807319414,
+    "median_excess_net": -0.0009318169797205558,
+    "max_drawdown": -4.45442559434059,
+    "round_trip_cost": 0.001
+  },
+  "baseline_random_entry": {
+    "trade_count": 5320,
+    "avg_excess_net_mean": -0.0006497752129313713,
+    "avg_excess_net_std": 0.00041828542554302314,
+    "hit_rate_mean": 0.4824616541353383,
+    "bootstrap_iters": 500
+  },
+  "baseline_buy_hold_sector": {
+    "avg_excess_gross_all": 0.0003705106727499239,
+    "note": "excess vs sector is ~0 by construction; sanity check only."
+  },
+  "comparison": {
+    "z_vs_random": 0.9647926516547223,
+    "beats_random_after_costs": true
+  },
+  "run": {
+    "folds": 9,
+    "model_backend": "numpy",
+    "scored_rows": 26600
+  },
+  "passed": true
+}
