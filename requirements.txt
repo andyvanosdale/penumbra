@@ -7,6 +7,7 @@ fsspec>=2024.2
 # Legacy plumbing test's real-price pull (legacy/pull_prices.py); never read by a
 # committed run (spec/02 Sources).
 yfinance>=0.2.40
+pyarrow>=14.0
 
 # Dev
 pytest>=7.0
