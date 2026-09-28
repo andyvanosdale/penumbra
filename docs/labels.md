@@ -32,7 +32,7 @@ labels = label(oracle, candidates, lane, era_last_date, cost_model, stress=None,
 `candidates` has one row per candidate: `symbol`, `signal_date` (D),
 `target_level` and `stop_range` (D's high − low), both in D's
 split-and-dividend-adjusted basis, and `cost_inputs`, the cost model's inputs
-object for that candidate (issue 7's `CostInputs`). The backtester builds these
+object for that candidate (`harness.costs.CostInputs`, built by `harness.costs.cost_inputs`). The backtester builds these
 from as-of data. The output carries no `cost_inputs` column. If the backtester
 keeps the object column on its own frames, it flattens or drops it before any
 write. Candidate selection and the no-re-entry rule are issue 10's.
@@ -231,8 +231,9 @@ is checked first when it has a bar, and a pending next-open exit fills first.
   `leakage`.
 - The fixtures are `tests/fixtures/store.py` (the canonical store) and
   `tests/fixtures/label_store.py` (scenario stores).
-- `tests/labels/_cost_stub.py` stands in for `harness.costs` until issue 7
-  merges.
+- The tests charge costs with the real `harness.costs.CostModel` and
+  `CostInputs`. A thin recording subclass logs which legs were charged, on what
+  notional.
 
 ## Open points
 
