@@ -78,6 +78,15 @@ Copy this block for each new experiment. File naming: `research_log/YYYY-MM-DD-s
 
 ---
 
+## 2026-09-28 — Legacy day-of-week plumbing test on real prices (issue 1)
+
+**Commit:** `5a92cf0824a3cd34597481faa5d6d0b45039a812` · yfinance 1.7.0 · PASS —
+z vs random = 0.073 (tolerance |z| < 2.0), 11,911 signals, 0 tickers failed
+(58/58 pulled: 50 tickers + 8 sector ETFs, 2015-01-01 → 2020-12-31). Full
+pre-registration and results: `2026-09-28-legacy-control-real-prices.md`.
+
+---
+
 ## 0000-00-00 — Project bootstrap (placeholder)
 
 **Phase:** 0 (setup)
