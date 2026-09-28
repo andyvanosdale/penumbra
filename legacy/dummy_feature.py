@@ -16,6 +16,7 @@ import json
 import sys
 from pathlib import Path
 
+from config.env import legacy_data_root
 from legacy.eras import DEVELOPMENT
 from legacy.universe import TICKERS
 from legacy.backtest import BacktestConfig, run_backtest
@@ -23,15 +24,13 @@ from legacy.costs import DEFAULT_COSTS
 from legacy.evaluate import evaluate, format_report
 from legacy.store import PITStore
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB = ROOT / "data" / "processed" / "pit.sqlite"
-
 # Acceptance tolerance: how far the strategy may sit from random and still count
 # as "no edge". |z| < 2 ~ within noise; a larger gap is a red flag to audit.
 Z_TOLERANCE = 2.0
 
 
-def main(db_path: str = str(DEFAULT_DB)) -> dict:
+def main(db_path: str | None = None) -> dict:
+    db_path = str(db_path) if db_path else str(legacy_data_root() / "processed" / "pit.sqlite")
     if not Path(db_path).exists():
         sys.exit(f"No store at {db_path}. Run:\n"
                  "  python -m legacy.make_synthetic   # or ingest.pull_prices\n"
@@ -62,14 +61,14 @@ def main(db_path: str = str(DEFAULT_DB)) -> dict:
     print(f"\nVERDICT: {verdict}  (|z|={abs(z):.3f} vs tol {Z_TOLERANCE})")
 
     report["passed"] = bool(passed)
-    out = ROOT / "data" / "processed" / "dummy_feature_report.json"
+    out = legacy_data_root() / "processed" / "dummy_feature_report.json"
     out.write_text(json.dumps(report, indent=2))
     print(f"Report written: {out}")
     return report
 
 
 if __name__ == "__main__":
-    # Optional positional arg overrides the store path (default: data/processed/pit.sqlite).
-    db = sys.argv[1] if len(sys.argv) > 1 else str(DEFAULT_DB)
+    # Optional positional arg overrides the store path (default: $PENUMBRA_DATA_ROOT/legacy/processed/pit.sqlite).
+    db = sys.argv[1] if len(sys.argv) > 1 else None
     r = main(db)
     sys.exit(0 if r.get("passed") else 1)
