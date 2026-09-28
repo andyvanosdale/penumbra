@@ -88,6 +88,11 @@ anything. The run log, which can't be rebuilt, lives under the data root instead
   date. An EVENTS row → the next NYSE session after the filing date, or the filing
   date when acceptance is known to be before 16:00 ET. An hourly kline → its close
   time. Vendor `lastupdated` is kept as metadata and never used.
+- The writer enforces `available_at` = the row's date for `calendar`, `bars_daily`,
+  `actions`, `listing`, `marketcap` and `lane_membership` (`docs/store.md`,
+  "Availability invariant"). A batched panel read as of the end of a range is correct
+  only because of this. `events` and `bars_hourly` must be filtered on `available_at`
+  per date by every consumer.
 
 ### Tables (issue 16 is authoritative for the columns; this is the contract; full columns in `docs/store.md`)
 

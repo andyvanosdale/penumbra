@@ -18,7 +18,7 @@ from typing import Iterable, Mapping
 
 import pandas as pd
 
-from harness.store.schema import DATE, TABLES, TIMESTAMP
+from harness.store.schema import AVAILABLE_ON_DATE, DATE, TABLES, TIMESTAMP
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -100,6 +100,10 @@ def upsert(conn: sqlite3.Connection, table: str, snapshot_id: str,
             if aa < dated:
                 raise StoreWriteError(f"{table} row {i}: available_at {aa} is before "
                                       f"{spec.date_column} {dated}")
+            if table in AVAILABLE_ON_DATE and aa != dated:
+                raise StoreWriteError(
+                    f"{table} row {i}: available_at {aa} must equal {spec.date_column} "
+                    f"{dated} (spec/02; schema.AVAILABLE_ON_DATE)")
 
     cols = list(spec.all_columns)
     payload = [c for c in cols if c not in spec.key]
