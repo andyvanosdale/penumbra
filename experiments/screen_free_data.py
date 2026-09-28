@@ -162,7 +162,7 @@ def _yf_batch(tickers: list[str], start: str, end: str) -> pd.DataFrame:
 
 
 def stage_prices(batch_size: int = 60, workers: int = 4) -> None:
-    lst = pd.read_csv(UNI / "common_stock_list.csv")
+    lst = pd.read_csv(UNI / "common_stock_list.csv", keep_default_na=False)
     tickers = lst["symbol"].tolist()
     batches = [tickers[i:i + batch_size] for i in range(0, len(tickers), batch_size)]
     end_excl = (pd.Timestamp(EQ_END) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
@@ -200,14 +200,14 @@ def stage_prices(batch_size: int = 60, workers: int = 4) -> None:
                 log.info("prices: %d/%d batches, %.0fs, %d tickers without data so far", n, len(todo), time.time() - t0, len(failed))
     prev = json.loads((YF / "failed_tickers.json").read_text()) if (YF / "failed_tickers.json").exists() else {}
     prev.update(failed)
-    (YF / "failed_tickers.json").write_text(json.dumps(prev, indent=1, sort_keys=True))
+    (YF / "failed_tickers.json").write_text(json.dumps({str(k): v for k, v in prev.items()}, indent=1, sort_keys=True))
     log.info("prices done: %.0fs; %d tickers without data", time.time() - t0, len(prev))
 
 
 def stage_caps(workers: int = 8) -> None:
     import yfinance as yf
     logging.getLogger("yfinance").setLevel(logging.CRITICAL)
-    lst = pd.read_csv(UNI / "common_stock_list.csv")
+    lst = pd.read_csv(UNI / "common_stock_list.csv", keep_default_na=False)
     out_path = UNI / "market_caps.csv"
     done = pd.read_csv(out_path) if out_path.exists() else pd.DataFrame(columns=["symbol", "market_cap", "shares", "last_price", "error", "source"])
     scr = UNI / "nasdaq_screener_stocks.json"
@@ -655,6 +655,14 @@ def _z(daily: pd.Series) -> tuple[float, int]:
     return float(daily.mean() / (daily.std(ddof=1) / math.sqrt(len(daily)))), int(len(daily))
 
 
+def _se(daily: pd.Series) -> tuple[float, float]:
+    """(mean over entry days, standard error of that mean)."""
+    daily = daily.dropna()
+    if len(daily) < 2:
+        return np.nan, np.nan
+    return float(daily.mean()), float(daily.std(ddof=1) / math.sqrt(len(daily)))
+
+
 def summarize(tr: pd.DataFrame, cost_bps: float | str) -> dict:
     per_trade = cost_bps in ("spec", "tier")
     c = tr["cost_" + cost_bps] if per_trade else cost_bps / 1e4
@@ -663,9 +671,14 @@ def summarize(tr: pd.DataFrame, cost_bps: float | str) -> dict:
     f["net_minus_bench"] = f["net"] - f["bench"]
     cand = tr.copy()
     cand["fwd5_net_excess"] = cand["fwd5"] - cand["uni_fwd5"] - c
-    z_net, nd_net = _z(f.groupby("signal_date")["net_minus_bench"].mean())
-    z_f5, nd_f5 = _z(cand.dropna(subset=["fwd5_net_excess"]).groupby("signal_date")["fwd5_net_excess"].mean())
+    d_net = f.groupby("signal_date")["net_minus_bench"].mean()
+    d_f5 = cand.dropna(subset=["fwd5_net_excess"]).groupby("signal_date")["fwd5_net_excess"].mean()
+    z_net, nd_net = _z(d_net)
+    z_f5, nd_f5 = _z(d_f5)
+    dm_net, se_net = _se(d_net)
+    dm_f5, se_f5 = _se(d_f5)
     return {
+        "daymean_net_minus_bench": dm_net, "se_net": se_net, "daymean_fwd5_excess": dm_f5, "se_fwd5": se_f5,
         "candidates": int(len(tr)), "filled": int(len(f)),
         "mean_net": float(f["net"].mean()) if len(f) else np.nan, "median_net": float(f["net"].median()) if len(f) else np.nan,
         "mean_gross": float(f["gross"].mean()) if len(f) else np.nan,
@@ -729,17 +742,45 @@ def per_year_markdown(res: pd.DataFrame, market: str, universe: str, fill: str =
     return "\n".join(lines)
 
 
-def stage_run() -> None:
+def _load_meta() -> dict:
+    mp = PROC / "screen_free_data_meta.json"
+    if mp.exists():
+        return json.loads(mp.read_text())
+    return {"spec_commit": "b1616412", "markets": {}, "runs": {}}
+
+
+def _merge_results(new_rows: pd.DataFrame) -> pd.DataFrame:
+    rp = PROC / "screen_free_data_results.csv"
+    old = pd.read_csv(rp, dtype={"cost": str, "year": str}) if rp.exists() else pd.DataFrame()
+    if not old.empty:
+        old = old[~old["market"].isin(new_rows["market"].unique())]
+    res = pd.concat([old, new_rows], ignore_index=True)
+    res.to_csv(rp, index=False)
+    return res
+
+
+def _write_tables(res: pd.DataFrame) -> None:
+    md = "# Free-data screen: headline tables\n" + headline_markdown(res)
+    for mk, un in [("equity", "smallcap"), ("equity", "uncapped"), ("crypto", "top100")]:
+        if ((res["market"] == mk) & (res["universe"] == un)).any():
+            md += "\n" + per_year_markdown(res, mk, un)
+            md += "\n" + per_year_markdown(res, mk, un, "close")
+    (PROC / "screen_free_data_tables.md").write_text(md)
+
+
+def run_equity() -> pd.DataFrame:
     t0 = time.time()
-    meta: dict = {"run_at": pd.Timestamp.utcnow().isoformat(), "spec_commit": "b1616412", "markets": {}}
-    all_rows = []
-    # ---------------- equities
+    meta = _load_meta()
     px = equity_panel()
-    caps = pd.read_csv(UNI / "market_caps.csv")
+    caps = pd.read_csv(UNI / "market_caps.csv", keep_default_na=False, na_values=[""])
     A = build_arrays(px, "equity")
-    capmap = caps.set_index("symbol")["market_cap"].reindex(A["tickers"])
+    capmap = caps.drop_duplicates("symbol").set_index("symbol")["market_cap"].reindex(A["tickers"])
     small = (capmap < EQ_CAP_USD).to_numpy() & capmap.notna().to_numpy()
+    lst = pd.read_csv(UNI / "common_stock_list.csv", keep_default_na=False)["symbol"]
+    missing = sorted(set(lst) - set(px["ticker"].unique()))
+    (YF / "tickers_without_data.json").write_text(json.dumps(missing))
     meta["markets"]["equity"] = {
+        "list_size": int(len(lst)), "tickers_without_yf_data_2015_2023": int(len(missing)),
         "tickers_with_prices": int(len(A["tickers"])), "sessions": int(len(A["cal"])),
         "first_session": str(A["cal"][0].date()), "last_session": str(A["cal"][-1].date()),
         "tickers_with_cap": int(capmap.notna().sum()), "tickers_under_cap": int(small.sum()),
@@ -747,23 +788,31 @@ def stage_run() -> None:
         "universe_smallcap": universe_size_stats(A, small), "universe_uncapped": universe_size_stats(A, None),
     }
     log.info("equity panel: %s", meta["markets"]["equity"])
+    rows = []
     for uname, mask in [("smallcap", small), ("uncapped", None)]:
         trades = {}
         for fill in FILLS:
             trades[fill] = simulate(A, fill, mask)
             log.info("equity %s %s: %d candidates, %d filled, %.0fs", uname, fill, len(trades[fill]), trades[fill]["filled"].sum(), time.time() - t0)
-        rep = report(trades, "equity", uname)
-        all_rows.append(rep)
+        rows.append(report(trades, "equity", uname))
         pd.concat(trades.values()).to_parquet(RAW / f"trades_equity_{uname}.parquet", index=False)
-    del px, A
-    # ---------------- crypto
+        meta.setdefault("diagnostics", {})[f"equity_{uname}"] = diagnostics(A, trades, "equity", uname, mask)
+        log.info("equity %s diagnostics: %s", uname, {k: v for k, v in meta["diagnostics"][f"equity_{uname}"].items() if not isinstance(v, (list, dict))})
+    meta["runs"]["equity"] = {"run_at": pd.Timestamp.utcnow().isoformat(), "runtime_s": round(time.time() - t0)}
+    (PROC / "screen_free_data_meta.json").write_text(json.dumps(meta, indent=2, default=str))
+    return _merge_results(pd.concat(rows, ignore_index=True))
+
+
+def run_crypto() -> pd.DataFrame:
+    t0 = time.time()
+    meta = _load_meta()
     d1 = pd.read_parquet(BIN / "klines_1d.parquet")
     cpx = crypto_panel(d1)
     o1 = pd.read_parquet(BIN / "klines_1h_0100.parquet") if (BIN / "klines_1h_0100.parquet").exists() else None
     A = build_arrays(cpx, "crypto", o1)
     meta["markets"]["crypto"] = {
-        "symbols_after_exclusions": int(len(A["tickers"])), "days": int(len(A["cal"])),
-        "first_day": str(A["cal"][0].date()), "last_day": str(A["cal"][-1].date()),
+        "usdt_symbols_in_bucket": int(d1["symbol"].nunique()), "symbols_after_exclusions": int(len(A["tickers"])),
+        "days": int(len(A["cal"])), "first_day": str(A["cal"][0].date()), "last_day": str(A["cal"][-1].date()),
         "next_open_source": "1h kline open at 01:00 UTC on D+1" if o1 is not None else "1d open on D+1 (equals the signal close)",
         "o1_coverage_of_universe_cells": float(np.mean(~np.isnan(A["o1"][A["in_universe"]]))) if o1 is not None else None,
         "universe": universe_size_stats(A, None),
@@ -773,23 +822,70 @@ def stage_run() -> None:
     for fill in FILLS:
         trades[fill] = simulate(A, fill, None)
         log.info("crypto %s: %d candidates, %d filled", fill, len(trades[fill]), trades[fill]["filled"].sum())
-    all_rows.append(report(trades, "crypto", "top100"))
     pd.concat(trades.values()).to_parquet(RAW / "trades_crypto.parquet", index=False)
-    res = pd.concat(all_rows, ignore_index=True)
-    res.to_csv(PROC / "screen_free_data_results.csv", index=False)
-    meta["runtime_s"] = round(time.time() - t0)
+    meta.setdefault("diagnostics", {})["crypto_top100"] = diagnostics(A, trades, "crypto", "top100", None)
+    log.info("crypto diagnostics: %s", {k: v for k, v in meta["diagnostics"]["crypto_top100"].items() if not isinstance(v, (list, dict))})
+    meta["runs"]["crypto"] = {"run_at": pd.Timestamp.utcnow().isoformat(), "runtime_s": round(time.time() - t0)}
     (PROC / "screen_free_data_meta.json").write_text(json.dumps(meta, indent=2, default=str))
-    # headline: next-open, zero cost, all years
-    head = res[(res["year"] == "all")].pivot_table(index=["market", "universe", "fill"], columns="cost",
-                                                   values=["fwd5_excess", "mean_net", "z_fwd5", "z_net_vs_universe", "filled", "candidates"])
-    pd.set_option("display.width", 250); pd.set_option("display.max_columns", 40)
-    print(head.to_string())
-    md = "# Free-data screen: headline tables\n" + headline_markdown(res)
-    for mk, un in [("equity", "smallcap"), ("equity", "uncapped"), ("crypto", "top100")]:
-        md += "\n" + per_year_markdown(res, mk, un)
-        md += "\n" + per_year_markdown(res, mk, un, "close")
-    (PROC / "screen_free_data_tables.md").write_text(md)
-    log.info("run done in %.0fs", time.time() - t0)
+    return _merge_results(report(trades, "crypto", "top100"))
+
+
+def diagnostics(A: dict, trades: dict[str, pd.DataFrame], market: str, universe: str, cap_mask) -> dict:
+    """Sanity checks and the spec/07 controls, on the next-open fill at zero cost. Diagnostics only."""
+    tr = trades["next_open"]
+    f = tr[tr["filled"]].copy()
+    f["nmb"] = f["gross"] - f["bench"]
+    f["f5x"] = f["fwd5"] - f["uni_fwd5"]
+    daily = f.groupby("signal_date")["nmb"].mean()
+    d5 = f.dropna(subset=["f5x"]).groupby("signal_date")["f5x"].mean()
+    # concentration: share of summed net-minus-bench P&L from the top 10 entry days (by absolute contribution)
+    contrib = f.groupby("signal_date")["nmb"].sum()
+    top10 = contrib.abs().nlargest(10).index
+    z_wo_top10, _ = _z(daily.drop(top10))
+    z5_wo_top10, _ = _z(d5.drop(top10, errors="ignore"))
+    # winsorized means (1st/99th pct) to show whether a few prints drive the mean
+    lo, hi = f["gross"].quantile([0.01, 0.99])
+    wins = f["gross"].clip(lo, hi).mean()
+    # planted-effect positive control: +50 bps on every candidate's return; z must clear 3.0 for the sample to decide
+    z_plant, _ = _z(daily + 0.005)
+    z5_plant, _ = _z(d5 + 0.005)
+    # stale-signal placebo: candidate on D is the name whose shock was <= -k on D-20
+    A2 = dict(A)
+    A2["shock"] = _shift(A["shock"], -20)
+    pl = simulate(A2, "next_open", cap_mask)
+    plf = pl[pl["filled"]]
+    z_pl, nd_pl = _z((plf["gross"] - plf["bench"]).groupby(plf["signal_date"]).mean())
+    z5_pl, _ = _z((plf["fwd5"] - plf["uni_fwd5"]).dropna().groupby(plf.loc[(plf["fwd5"] - plf["uni_fwd5"]).notna().to_numpy(), "signal_date"]).mean())
+    ext = f.nlargest(5, "gross")[["signal_date", "ticker", "entry", "exit_px", "exit_type", "gross"]].to_dict("records")
+    ext_lo = f.nsmallest(5, "gross")[["signal_date", "ticker", "entry", "exit_px", "exit_type", "gross"]].to_dict("records")
+    return {
+        "market": market, "universe": universe, "fill": "next_open", "cost": 0,
+        "trades": int(len(f)), "entry_days": int(daily.size), "mean_shock": float(f["shock"].mean()),
+        "gross_p01": float(lo), "gross_p99": float(hi), "gross_min": float(f["gross"].min()), "gross_max": float(f["gross"].max()),
+        "mean_gross": float(f["gross"].mean()), "mean_gross_winsorized_1_99": float(wins),
+        "mean_fwd5_candidates": float(f["fwd5"].mean()), "mean_fwd5_universe": float(f["uni_fwd5"].mean()),
+        "top10_days_share_of_abs_pnl": float(contrib.loc[top10].abs().sum() / contrib.abs().sum()),
+        "z_net_without_top10_days": z_wo_top10, "z_fwd5_without_top10_days": z5_wo_top10,
+        "planted_50bps_z_net": z_plant, "planted_50bps_z_fwd5": z5_plant,
+        "placebo_lag20_trades": int(len(plf)), "placebo_lag20_days": nd_pl,
+        "placebo_lag20_mean_net_minus_bench": float((plf["gross"] - plf["bench"]).mean()),
+        "placebo_lag20_z_net": z_pl, "placebo_lag20_fwd5_excess": float((plf["fwd5"] - plf["uni_fwd5"]).mean()), "placebo_lag20_z_fwd5": z5_pl,
+        "largest_gross": ext, "smallest_gross": ext_lo,
+        "mean_sessions_held": float(f["sessions_held"].mean()),
+        "unfilled_reasons": tr.loc[~tr["filled"], "unfilled_reason"].value_counts().to_dict(),
+    }
+
+
+def stage_run(markets: list[str]) -> None:
+    res = None
+    if "equity" in markets:
+        res = run_equity()
+    if "crypto" in markets:
+        res = run_crypto()
+    if res is None:
+        res = pd.read_csv(PROC / "screen_free_data_results.csv", dtype={"cost": str, "year": str})
+    _write_tables(res)
+    print((PROC / "screen_free_data_tables.md").read_text())
 
 
 if __name__ == "__main__":
@@ -797,6 +893,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("stage", choices=["universe", "prices", "caps", "crypto", "run"])
     ap.add_argument("--no-1h", action="store_true")
+    ap.add_argument("--markets", default="equity,crypto")
     a = ap.parse_args()
     if a.stage == "universe":
         stage_universe()
@@ -807,4 +904,4 @@ if __name__ == "__main__":
     elif a.stage == "crypto":
         stage_crypto(need_1h=not a.no_1h)
     elif a.stage == "run":
-        stage_run()
+        stage_run(a.markets.split(","))
