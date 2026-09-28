@@ -19,14 +19,12 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from config.env import legacy_data_root
 from legacy.universe import TICKER_TO_ETF, ETFS
-
-RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
 
 
 def _business_days(start: str, end: str) -> pd.DatetimeIndex:
@@ -85,9 +83,10 @@ def main():
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args()
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    raw_dir = legacy_data_root() / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
     stamp = _dt.date.today().strftime("%Y-%m-%d")
-    out = RAW_DIR / f"SYNTH_prices_{stamp}.csv"
+    out = raw_dir / f"SYNTH_prices_{stamp}.csv"
     df = generate(args.start, args.end, seed=args.seed)
     df.to_csv(out, index=False)
     print(f"Wrote SYNTHETIC snapshot: {out}")
