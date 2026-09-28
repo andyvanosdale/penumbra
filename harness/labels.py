@@ -36,7 +36,7 @@ import bisect
 import datetime as dt
 import math
 from dataclasses import dataclass, field
-from typing import Any, Literal, Mapping, Protocol
+from typing import Any, Literal, Protocol
 
 import numpy as np
 import pandas as pd
@@ -323,16 +323,15 @@ def _leg_total(row: dict, prefix: str) -> float:
 
 
 def label(oracle: OracleReader, candidates: pd.DataFrame, lane: str, era_last_date,
-          cost_model: CostModelLike, stress=None, *, lot_size: float = DEFAULT_CRYPTO_LOT,
-          lot_sizes: Mapping[str, float] | None = None) -> pd.DataFrame:
+          cost_model: CostModelLike, stress=None, *, lot_size: float = DEFAULT_CRYPTO_LOT
+          ) -> pd.DataFrame:
     """Label every candidate: one row per candidate, OUTPUT_COLUMNS.
 
     `candidates` has REQUIRED_COLUMNS: `target_level` and `stop_range` in D's
     split-and-dividend-adjusted basis (from `harness.levels.entry_levels`), and
     `cost_inputs`, the cost model's inputs object for the candidate. `stress` is a
     `config.params.StressCase` or None; only its `stop_fills_at_low` is read here
-    (the cost model applies its multipliers). Crypto shares round down to the
-    symbol's lot in `lot_sizes`, else `lot_size`. Every read is bounded by
+    (the cost model applies its multipliers). Every read is bounded by
     `era_last_date` and by the oracle's own bounds and holdout lock.
     """
     missing = [c for c in REQUIRED_COLUMNS if c not in candidates.columns]
@@ -360,8 +359,7 @@ def label(oracle: OracleReader, candidates: pd.DataFrame, lane: str, era_last_da
     rows = []
     for cand, D in zip(candidates.to_dict("records"), signal_dates):
         rows.append(_label_one(oracle, cand, D, lane, market, sessions, pos, era_last,
-                               cost_model, stop_at_low,
-                               (lot_sizes or {}).get(str(cand["symbol"]), lot_size)))
+                               cost_model, stop_at_low, lot_size))
     return pd.DataFrame(rows, columns=list(OUTPUT_COLUMNS))
 
 

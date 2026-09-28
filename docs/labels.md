@@ -41,8 +41,8 @@ write. Candidate selection and the no-re-entry rule are issue 10's.
 (`CostModelLike` in `labels.py`). The labeler never imports `harness.costs`; the
 backtester builds the model, with its stress case and multiplier, and passes it
 in. `stress` is a `config.params.StressCase`. The labeler reads only its
-`stop_fills_at_low`. `lot_sizes` maps a crypto symbol to its exchange lot;
-`lot_size` (default 1e-8) is the fallback.
+`stop_fills_at_low`. Crypto shares round down to
+`lot_size` (default 1e-8).
 
 `era_last_date` may be a non-session (the validation era ends on a Sunday). The
 boundary the rule uses is the last lane session on or before it.

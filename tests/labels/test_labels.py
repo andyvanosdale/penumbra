@@ -502,8 +502,5 @@ def test_crypto_fills_at_the_0100_utc_hourly_open():
     assert a["entry_date"] == "2021-03-07" and a["entry_price"] == pytest.approx(k)
     assert a["shares"] == pytest.approx(math.floor(10_000 / k / 1e-4) * 1e-4)
     assert a["bucket"] == "noise"
-    out = label(oracle, cands.iloc[:1], "crypto", fx.END, CostModel("crypto"),
-                lot_sizes={"BTCUSDT": 0.01})
-    assert out.iloc[0]["shares"] == pytest.approx(math.floor(10_000 / k / 0.01) * 0.01)
     # No 1h kline on 03-11 in the fixture: unfilled, not carried.
     assert b["status"] == "unfilled" and b["unfilled_reason"] == UNFILLED_NO_BAR
