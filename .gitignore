@@ -16,6 +16,7 @@ data/processed/*
 *.duckdb
 *.sqlite
 *.db
+*.sqlite-journal
 
 # OS
 .DS_Store
