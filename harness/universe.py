@@ -59,7 +59,7 @@ EQUITY_LANES = ("smallcap", "discovered")
 
 # spec/01 Eligibility. `category` is a TICKERS current value, allowlisted like
 # `sector` (spec/04; PM ruling on issue 6's Q4) — read as-is, no point-in-time
-# reconstruction. `exchange` is point-in-time; see `_exchange_on` below.
+# reconstruction. `exchange` is point-in-time; see `_exchange_frame` below.
 ELIGIBLE_CATEGORIES = (
     "Domestic Common Stock",
     "Domestic Common Stock Primary Class",
@@ -159,37 +159,16 @@ def _window_sessions(sessions: list[str], dates: list[str]) -> list[str]:
     return sessions[start_i:end_i + 1]
 
 
-def _exchange_on(reader: AsOfReader, market: str, symbols: Sequence[str], date: str,
-                 as_of: str) -> pd.DataFrame:
-    """Point-in-time exchange on `date` (spec/01 Eligibility; PM ruling on issue
-    6's Q4, penumbra-specs PR 10): the most recent ACTIONS listing or
-    exchange-change event on or before `date`, falling back to the TICKERS
-    current `exchange`. Returns `symbol`, `exchange`, `source`.
-
-    # TODO(PA): switch to reader.exchange_on(market, symbols, date, as_of) once
-    # ingest/sharadar (issues 3+5, branch ingest/sharadar) merges it into
-    # harness.store.reader. This is a local stand-in with that exact call
-    # signature and return shape; until it lands, this always returns the
-    # current TICKERS exchange (`source="tickers"`), regardless of `date`,
-    # which is today's behavior and not point-in-time.
-    """
-    if hasattr(reader, "exchange_on"):
-        return reader.exchange_on(market, symbols, date, as_of)
-    attrs = reader.symbols(market, symbols, as_of)
-    out = (attrs[["symbol", "exchange"]].copy() if not attrs.empty
-          else pd.DataFrame(columns=["symbol", "exchange"]))
-    out["source"] = "tickers"
-    return out
-
-
 def _exchange_frame(reader: AsOfReader, market: str, symbols: Sequence[str],
                     dates: list[str], as_of: str) -> pd.DataFrame:
-    """Per (symbol, date) exchange: one `_exchange_on` call per requested date,
-    since its signature (and the real `exchange_on` it stands in for) takes a
-    single date, not a window."""
+    """Per (symbol, date) exchange, via `AsOfReader.exchange_on` (spec/01
+    Eligibility; PM ruling on issue 6's Q4, penumbra-specs PR 10): the most
+    recent ACTIONS listing or exchange-change event on or before the date,
+    falling back to the TICKERS current `exchange`. One call per requested
+    date, since `exchange_on` takes a single date, not a window."""
     frames = []
     for d in dates:
-        ex = _exchange_on(reader, market, symbols, d, as_of)
+        ex = reader.exchange_on(market, symbols, d, as_of)
         if not ex.empty:
             frames.append(ex[["symbol", "exchange"]].assign(date=d))
     if not frames:

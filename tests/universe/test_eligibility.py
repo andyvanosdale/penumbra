@@ -4,44 +4,12 @@ filters and the 250-day bar-completeness rule.
 
 from __future__ import annotations
 
-import sqlite3
-
-import pandas as pd
 import pytest
 
 from harness import universe
-from harness.store import AsOfReader
+from harness.store import AsOfReader, upsert
 from tests.fixtures.universe_store import (D, SNAPSHOT, TRADING_DAYS, add_eligible_equity,
                                            finalize, new_store)
-
-
-class _FakeExchangeOnReader:
-    """Wraps an `AsOfReader`, adding a synthetic `exchange_on` that returns a
-    point-in-time exchange from a symbol's change history.
-
-    Stands in for `AsOfReader.exchange_on`, which ingest/sharadar (issues 3+5)
-    hasn't merged yet (PM ruling on issue 6's Q4). This checks the integration
-    seam `harness.universe._exchange_on` calls through to `reader.exchange_on`
-    when it exists, independent of the real loader.
-    """
-
-    def __init__(self, reader: AsOfReader, changes: dict[str, list[tuple[str, str]]]):
-        self._reader = reader
-        self._changes = changes  # symbol -> sorted [(effective_date, exchange), ...]
-
-    def __getattr__(self, name):
-        return getattr(self._reader, name)
-
-    def exchange_on(self, market, symbols, date, as_of) -> pd.DataFrame:
-        rows = []
-        for sym in (symbols if symbols is not None else self._changes):
-            exchange = None
-            for effective, ex in self._changes.get(sym, []):
-                if effective <= date:
-                    exchange = ex
-            if exchange is not None:
-                rows.append({"symbol": sym, "exchange": exchange, "source": "actions"})
-        return pd.DataFrame(rows, columns=["symbol", "exchange", "source"])
 
 
 def _lanes(reader, dates):
@@ -104,16 +72,23 @@ def test_eligibility_filters_exclude_non_qualifying_names(label, category, excha
 
 
 def test_exchange_is_point_in_time_ineligible_before_the_move_eligible_after():
+    """`AsOfReader.exchange_on` (issues 3+5, PR 31): the most recent
+    ACTIONS-sourced listing row with an `exchange` on or before D, falling
+    back to the TICKERS current value. `MOVED`'s current (fallback) exchange
+    is `OTC`; an ACTIONS-sourced row recording its move to NASDAQ, dated
+    `move_date`, is what should flip its eligibility on and after that date.
+    """
     d_idx = TRADING_DAYS.index(D)
     move_date = TRADING_DAYS[d_idx + 10]
     before, after = TRADING_DAYS[d_idx], TRADING_DAYS[d_idx + 20]
 
     conn = new_store()
-    add_eligible_equity(conn, "MOVED", exchange="OTC")  # current value; overridden by the fake
+    add_eligible_equity(conn, "MOVED", exchange="OTC")
+    upsert(conn, "listing", SNAPSHOT, [dict(
+        market="us_equity", symbol="MOVED", event="listed", date=move_date,
+        source="actions", exchange="NASDAQ", available_at=move_date)])
     finalize(conn)
-    reader = _FakeExchangeOnReader(
-        AsOfReader(conn, SNAPSHOT),
-        {"MOVED": [("2000-01-01", "OTC"), (move_date, "NASDAQ")]})
+    reader = AsOfReader(conn, SNAPSHOT)
 
     smallcap, discovered = _lanes(reader, [before, move_date, after])
     for frame in (smallcap, discovered):

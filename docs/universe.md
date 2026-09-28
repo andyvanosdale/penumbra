@@ -115,17 +115,11 @@ PR 10):**
   read as-is with no point-in-time reconstruction.
 - `exchange` on D is point-in-time: the most recent ACTIONS listing or
   exchange-change event on or before D, falling back to the TICKERS current
-  `exchange`. The real implementation, `AsOfReader.exchange_on(market,
-  symbols, date, as_of)`, is being added to `harness/store/reader.py` by the
-  Sharadar-loader worker (issues 3+5, branch `ingest/sharadar`) and hasn't
-  merged yet. `harness.universe._exchange_on` is a local stand-in with that
-  exact call signature and return shape (`symbol`, `exchange`, `source`): it
-  calls `reader.exchange_on(...)` when the method exists, and otherwise falls
-  back to the current TICKERS `exchange` (today's non-point-in-time behavior),
-  marked `# TODO(PA): switch to exchange_on after ingest/sharadar merges`.
-  Since the real method takes one date, not a window, `_exchange_frame` calls
-  it once per requested date rather than folding it into the one windowed
-  panel read described above.
+  `exchange`. `AsOfReader.exchange_on(market, symbols, date, as_of)`
+  (`harness/store/reader.py`, issues 3+5, PR 31, merged) implements this;
+  `harness.universe._exchange_frame` calls it directly, once per requested
+  date rather than folding it into the one windowed panel read described
+  above, since it takes a single date, not a window.
 
 ## Screens (spec/01 Parameters)
 
@@ -193,10 +187,9 @@ can be pushed just above or below its floor deterministically.
 Covered: the listing boundary (a name is excluded on and after its delisting
 date, checked both on the delisting date and the session after, and
 re-included once a stray gap ages out of the 250-day window); the point-in-time
-`exchange` rule (a name that moves from OTC to NASDAQ mid-range is ineligible
-before the move and eligible on and after it, exercised through a fake
-`exchange_on` that stands in for ingest/sharadar's not-yet-merged one, so the
-integration seam is checked independent of the real loader); the market-cap
+`exchange` rule via the real `AsOfReader.exchange_on` (a name that moves from
+OTC to NASDAQ mid-range, recorded as an ACTIONS-sourced `listing` row, is
+ineligible before the move and eligible on and after it); the market-cap
 as-of rule, including a future DAILY row within a call's fetched panel that
 must not be used for an earlier date; the missing-marketcap discovered-only
 rule (and the symmetric case, marketcap present but at or above the ceiling);
