@@ -19,3 +19,8 @@ data/processed/*
 
 # OS
 .DS_Store
+
+# Free-data screen (issue #15): small summary outputs are committed; trade files stay in data/raw.
+!data/processed/screen_free_data_results.csv
+!data/processed/screen_free_data_meta.json
+!data/processed/screen_free_data_tables.md
