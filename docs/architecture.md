@@ -46,9 +46,9 @@ The labeler's output meets the features only inside the backtester.
 | `ingest/binance.py` | 1d and 1h klines → store; kline-derived listing; timestamp normalization | 02 | 4 | owed; gated on the screen's crypto result |
 | `harness/universe.py` | Per-lane eligibility and screens → `lane_membership` | 01 | 6 | owed |
 | `harness/features.py` | 14 features and `filing_2d`, as-of | 04 | 8 | owed |
-| `harness/labels.py` | Quarantined labeler: exit simulation, realized net exit return, forward returns, ex-post bucket, delisting treatment, era censoring (`docs/labels.md`) | 04 Labels, 03 Era boundaries, 01 Delisting, 05 steps 5–7 | 9 (exits with 10) | in review (issue 9) |
-| `harness/levels.py` | Entry levels (target, signal-day range) from the as-of reader only; the exit-invariance target | 05 Parameters, 02 Leakage tests | 9 | in review (issue 9) |
-| `harness/costs.py` | Abdi–Ranaldo spread, square-root slippage, fees, stress cases, breakeven multiple | 06 | 7 | owed |
+| `harness/labels.py` | Quarantined labeler: exit simulation, realized net exit return, forward returns, ex-post bucket, delisting treatment, era censoring (`docs/labels.md`) | 04 Labels, 03 Era boundaries, 01 Delisting, 05 steps 5–7 | 9 (exits with 10) | built (PR 30); cost stub swap owed |
+| `harness/levels.py` | Entry levels (target, signal-day range) from the as-of reader only; the exit-invariance target | 05 Parameters, 02 Leakage tests | 9 | built (PR 30) |
+| `harness/costs.py` | Abdi–Ranaldo spread, square-root slippage, fees, stress cases, breakeven multiple (`docs/costs.md`). **Calibration unverified**: see "Open items from the screen" | 06 | 7 | built (PR 33) |
 | `harness/strategy.py` | Candidate rule, no re-entry, entry fills, capped and close-fill variants | 05 | 10 | owed |
 | `harness/benchmark.py` | 1,000 seeded, quintile-matched random-entry draws | 05 Benchmark | 10 | owed |
 | `harness/backtest.py` | The join: features × labels × costs → trades; runs strategy, benchmark, variants, controls | 05 | 10 | owed |
