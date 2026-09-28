@@ -41,13 +41,14 @@ The labeler's output meets the features only inside the backtester.
 | `config/eras.py` | Per-lane era bounds | 03 | 17 | owed (still carries the news-project split) |
 | `config/params.py` | Every locked parameter as frozen data: the single input to the configuration hash | 01, 05, 06, 07 | 17 | owed |
 | `config/exclusions/` | Dated crypto base-asset exclusion list | 01 Eligibility | 6 | owed |
-| `harness/store/` | Schema, idempotent writer, as-of reader (single-date and windowed panel), read-time adjustment, lane calendars, bounded oracle reader (`docs/store.md`) | 02 Store, Trading calendars | 16, then 5 | 16 in review; 5 owed |
-| `ingest/sharadar.py` | SEP, TICKERS, ACTIONS, DAILY, EVENTS, SFP (SPY) raw exports → store | 02 | 3 | owed; built against fixtures until a key exists |
+| `harness/store/` | Schema, idempotent writer, as-of reader (single-date and windowed panel), read-time adjustment, lane calendars, bounded oracle reader (`docs/store.md`) | 02 Store, Trading calendars | 16, then 5 | built (16 merged; 5's listing derivation and delisting reason/exchange are `ingest/sharadar.py`, below) |
+| `ingest/sharadar.py` | SEP, TICKERS, ACTIONS, DAILY, EVENTS, SFP (SPY) raw exports → store | 02 | 3, 5 | built against fixtures; no Sharadar key exists, so nothing is verified against a real export (`docs/ingest-sharadar.md`) |
 | `ingest/binance.py` | 1d and 1h klines → store; kline-derived listing; timestamp normalization | 02 | 4 | owed; gated on the screen's crypto result |
 | `harness/universe.py` | Per-lane eligibility and screens → `lane_membership` | 01 | 6 | equity lanes (`smallcap`, `discovered`) in review (PR 32); crypto builder and exclusion list deferred to issue 15's outcome (`docs/universe.md`) |
 | `harness/features.py` | 14 features and `filing_2d`, as-of | 04 | 8 | owed |
-| `harness/labels.py` | Quarantined labeler: exit simulation, realized net exit return, forward returns, ex-post bucket, delisting treatment, era censoring | 04 Labels, 03 Era boundaries, 01 Delisting | 9 (exits with 10) | owed |
-| `harness/costs.py` | Abdi–Ranaldo spread, square-root slippage, fees, stress cases, breakeven multiple | 06 | 7 | owed |
+| `harness/labels.py` | Quarantined labeler: exit simulation, realized net exit return, forward returns, ex-post bucket, delisting treatment, era censoring (`docs/labels.md`) | 04 Labels, 03 Era boundaries, 01 Delisting, 05 steps 5–7 | 9 (exits with 10) | built (PR 30); cost stub swap owed |
+| `harness/levels.py` | Entry levels (target, signal-day range) from the as-of reader only; the exit-invariance target | 05 Parameters, 02 Leakage tests | 9 | built (PR 30) |
+| `harness/costs.py` | Abdi–Ranaldo spread, square-root slippage, fees, stress cases, breakeven multiple (`docs/costs.md`). **Calibration unverified**: see "Open items from the screen" | 06 | 7 | built (PR 33) |
 | `harness/strategy.py` | Candidate rule, no re-entry, entry fills, capped and close-fill variants | 05 | 10 | owed |
 | `harness/benchmark.py` | 1,000 seeded, quintile-matched random-entry draws | 05 Benchmark | 10 | owed |
 | `harness/backtest.py` | The join: features × labels × costs → trades; runs strategy, benchmark, variants, controls | 05 | 10 | owed |
@@ -66,6 +67,8 @@ Import rules, enforced by `tests/test_architecture.py`:
 - Only `harness/backtest.py` imports `harness.labels`.
 - The feature builder, the universe builder and the cost model read through
   `harness.store.reader` only.
+- `harness/levels.py` (the entry levels) reads through `harness.store.reader`
+  only and imports neither the oracle nor the labeler.
 
 ## Store
 
@@ -119,9 +122,11 @@ anything. The run log, which can't be rebuilt, lives under the data root instead
     lane's market and the era window, so the store doesn't depend on
     `config/eras.py`.
   - `hourly(...)`, `symbols(...)`, `actions(...)`, `listing(...)`,
-    `listed(market, date, as_of)`, `marketcap(...)`, `events(...)`,
-    `lane_membership(lane, ...)` and `calendar(calendar_name, start, end, as_of)`.
-    A lane maps to its calendar through `harness.store.calendar_for_lane`.
+    `listed(market, date, as_of)`, `exchange_on(market, symbols, date, as_of)`
+    (spec/01 Eligibility's point-in-time exchange, `docs/ingest-sharadar.md`),
+    `marketcap(...)`, `events(...)`, `lane_membership(lane, ...)` and
+    `calendar(calendar_name, start, end, as_of)`. A lane maps to its calendar
+    through `harness.store.calendar_for_lane`.
   - Every method takes `as_of` and the SQL filters `available_at <= :as_of`. The
     store leakage test (issue 16) asserts this on every table and both paths.
 - `harness.store.oracle.OracleReader(conn, snapshot_id, last_date, holdout_start, unlocked)`:
@@ -153,8 +158,10 @@ Two consequences shape the design:
    levels fixed at entry. The labeler reads bars t > D through the oracle and
    converts them into D's basis by dividing by the factors of actions in (D, t].
    The share count scales with a split. This is what makes the exit-invariance
-   test (issue 18) meaningful. Open question to the PM: the spec does not say how a
-   split during an open position is treated; this is the proposed reading.
+   test (issue 18) meaningful. The PM's spec change "Corporate actions during an
+   open position" (spec/05, `penumbra-specs` branch `spec/corporate-actions-in-position`)
+   adopts this reading and credits cash dividends through the dividend-adjusted
+   basis; `docs/labels.md` implements it.
 
 ### Raw files, snapshots and reproduction
 
@@ -223,6 +230,32 @@ Each is replaced by the spec-built module that owns it, and `legacy/` stays froz
 apart from issue 2's configuration change. Once the spec harness can run the
 day-of-week dummy through its own pipeline, `legacy/` is deleted.
 
+## Status: v1 rule paused (2026-09-28)
+
+The pre-build screen (issue 15; `research_log/2026-09-28-free-data-screen.md`) came
+back null in every lane against its pre-registered threshold. The equity build for
+the v1 rule has stopped, no Sharadar data will be bought for it, and the crypto lane
+is being removed by spec change. The owner is choosing the next strategy, through
+the PM.
+
+- **What stays.** These are strategy-agnostic and are kept and maintained: the fetcher, the store, configuration, eras, the run record, the invariance machinery and leakage gate, and the store availability invariant.
+- **What finishes.** The in-flight pieces (issue 3+5 loader, 6 universe, 7 costs, 8 features, 9 labeler) finish their current review round and merge if clean. They are likely to carry over to the next rule, and they are not extended.
+- **What doesn't start.** No new work begins on issues 4, 10, 11, 12 or 13 until the next strategy is decided.
+- **What continues.** Issue 17's reproduce-from-snapshot and CI/architecture work continue.
+
+### Open items from the screen
+
+1. **Post-shock drift.** Candidates underperform their same-day universe for
+   five sessions after the drop. It is strongest in crypto (day-mean −228 bps,
+   SE 61), and present in `smallcap` (−30 ± 12 bps). That is momentum/continuation,
+   the territory of the slide-cohort momentum epic, not reversion.
+2. **The spread estimator is uncalibrated.** spec/06's Abdi–Ranaldo estimator on
+   daily bars gave a median spread of about 2.35% on 60%-vol names, which is about 4% round trip
+   in equities and 6% in crypto. That is an order of magnitude above plausible
+   quotes. `harness/costs.py` implements it as written, but **no rule may be costed
+   with it until a quoted-spread sample validates it**. The quote hosts the screen
+   tried (Polygon, IEX) are blocked by the environment's egress policy.
+
 ## Build order
 
 ```
@@ -234,6 +267,6 @@ wave 4:             7 costs · 10 strategy + benchmark · 11 evaluator + control
 wave 5:             1 legacy control on real prices (any time after 2 and 17) · 12 dev run · 13 validation run
 ```
 
-Issue 15 (the screen) runs outside this order. A null on the klines removes the
+Superseded by the status section above for issues 4 and 10–13. Issue 15 (the screen) ran outside this order. A null on the klines removes the
 crypto lane by spec change: issue 4 and every crypto branch are dropped. A null on
 equities stops the equity build.
