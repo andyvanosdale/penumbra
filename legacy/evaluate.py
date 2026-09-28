@@ -21,8 +21,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from harness.backtest import BacktestResult
-from harness.costs import CostModel, DEFAULT_COSTS
+from legacy.backtest import BacktestResult
+from legacy.costs import CostModel, DEFAULT_COSTS
 
 
 @dataclass

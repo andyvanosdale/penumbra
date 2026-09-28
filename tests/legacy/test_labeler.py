@@ -5,8 +5,8 @@ arithmetic and that incomplete forward windows are left unlabeled (never guessed
 import numpy as np
 import pandas as pd
 
-from harness.store import PITStore
-from harness.labels import Labeler
+from legacy.store import PITStore
+from legacy.labels import Labeler
 
 
 def _store_with(ticker_path, etf_path, dates):

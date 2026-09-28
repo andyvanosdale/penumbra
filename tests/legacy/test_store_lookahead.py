@@ -8,7 +8,7 @@ import datetime as dt
 import pandas as pd
 import pytest
 
-from harness.store import PITStore
+from legacy.store import PITStore
 
 
 def _frame():

@@ -3,8 +3,8 @@
 Builds the as-of-aware price table: every row gets a knowledge_date. For a daily
 OHLCV bar, knowledge_date = the bar's own date (a bar is knowable at its close).
 
-    python -m ingest.load_to_store                      # newest snapshot -> default db
-    python -m ingest.load_to_store --raw <path> --db <path>
+    python -m legacy.load_to_store                      # newest snapshot -> default db
+    python -m legacy.load_to_store --raw <path> --db <path>
 
 Reads .parquet (real pulls) or .csv (synthetic) — whichever snapshot is newest
 unless --raw is given.
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from harness.store import PITStore
+from legacy.store import PITStore
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "raw"

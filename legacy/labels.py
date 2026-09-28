@@ -26,8 +26,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from config.universe import benchmark_for
-from harness.store import PITStore
+from legacy.universe import benchmark_for
+from legacy.store import PITStore
 
 DEFAULT_HORIZON = 5        # trading days (plan §2)
 DEFAULT_THRESHOLD = 0.02   # 2% excess vs sector (plan §2)

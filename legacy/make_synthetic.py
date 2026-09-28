@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from config.universe import TICKER_TO_ETF, ETFS
+from legacy.universe import TICKER_TO_ETF, ETFS
 
 RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
 

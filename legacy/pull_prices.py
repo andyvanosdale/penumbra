@@ -3,7 +3,7 @@ raw snapshot (plan §5, §10.2, §6.5 data-versioning).
 
 Requires `yfinance` and network access. Run on your machine, not in a sandbox:
 
-    python -m ingest.pull_prices --start 2018-01-01 --end 2024-12-31
+    python -m legacy.pull_prices --start 2018-01-01 --end 2024-12-31
 
 Output: data/raw/prices_<snapshot_date>.parquet  (never overwritten silently).
 Columns: ticker, date, open, high, low, close, adj_close, volume.
@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from config.universe import ALL_SYMBOLS
+from legacy.universe import ALL_SYMBOLS
 
 RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
 

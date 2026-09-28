@@ -4,7 +4,7 @@ Runs the harness end-to-end and confirms it reports NO edge — hit rate and ave
 net excess return indistinguishable from the random-entry baseline. If the harness
 finds an "edge" in this useless feature, STOP and find the bug (plan §4).
 
-    python -m experiments.dummy_feature
+    python -m legacy.dummy_feature
 
 SUCCESS CRITERION: the strategy sits within a small tolerance of the random-entry
 baseline (|z| < Z_TOLERANCE).
@@ -16,12 +16,12 @@ import json
 import sys
 from pathlib import Path
 
-from config.eras import DEVELOPMENT
-from config.universe import TICKERS
-from harness.backtest import BacktestConfig, run_backtest
-from harness.costs import DEFAULT_COSTS
-from harness.evaluate import evaluate, format_report
-from harness.store import PITStore
+from legacy.eras import DEVELOPMENT
+from legacy.universe import TICKERS
+from legacy.backtest import BacktestConfig, run_backtest
+from legacy.costs import DEFAULT_COSTS
+from legacy.evaluate import evaluate, format_report
+from legacy.store import PITStore
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = ROOT / "data" / "processed" / "pit.sqlite"
@@ -34,8 +34,8 @@ Z_TOLERANCE = 2.0
 def main(db_path: str = str(DEFAULT_DB)) -> dict:
     if not Path(db_path).exists():
         sys.exit(f"No store at {db_path}. Run:\n"
-                 "  python -m ingest.make_synthetic   # or ingest.pull_prices\n"
-                 "  python -m ingest.load_to_store")
+                 "  python -m legacy.make_synthetic   # or ingest.pull_prices\n"
+                 "  python -m legacy.load_to_store")
 
     store = PITStore(db_path)
     # Clamp the run to the development era (plan §6.1). Use what the data covers.
