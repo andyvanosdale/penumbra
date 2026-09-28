@@ -6,24 +6,25 @@ consumer, alongside the universe builder and the feature builder, of
 `harness.store.reader.AsOfReader` (`docs/architecture.md`, "Import rules"); it never
 imports `harness.store.oracle`.
 
-## Spec ambiguity flagged for the PA: where the spread floor applies
+## Where the spread floor applies (PM-ruled)
 
-spec/06 says, in one cell: "Half of the Abdi-Ranaldo (2017) close-high-low spread
-estimate over the 20 lane trading days ending D-1, with negative two-day estimates
-set to zero before averaging; the estimate is floored at max(0.25%, one tick / D's
-unadjusted close)". "The estimate is floored" could mean the *full* (round-trip) AR
-estimate is floored before halving (giving an effective per-side floor of 0.125% for
-equities), or the *half-spread* (the per-side quantity, already named earlier in the
-same sentence, and the one the table's own column, "Spread (per side)", is about) is
-floored directly at 0.25%.
+spec/06 originally said, in one cell, "Half of the Abdi-Ranaldo (2017) close-high-low
+spread estimate ...; the estimate is floored at max(0.25%, one tick / D's unadjusted
+close)" -- ambiguous between flooring the per-side half-spread directly, or flooring
+the full (round-trip) AR estimate before halving. Issue #7's PR (penumbra#33) flagged
+this and implemented the half-spread reading as the conservative default. The PM ruled
+it the other way (penumbra-specs PR #10, "spec06-floor-before-halving"): spec/06 now
+says explicitly that the floor applies to the full estimate before halving, so the
+effective per-side floor is *half* of the locked constants -- 0.125% for equities
+(not 0.25%), and 0.025%/0.075% for the crypto tiers (not 0.05%/0.15%).
 
-This module floors the half-spread directly (0.25% per side, not 0.125%): the column
-header is "Spread (per side)", so every clause inside that cell, including the floor,
-most naturally describes the per-side number; and it is the more conservative
-reading (it can only raise modeled costs, never understate them). `CostInputs.
-half_spread_est` is therefore computed unfloored (half the AR estimate, negatives
-zeroed before averaging) and `CostModel.leg` applies the floor to it directly, before
-the entry leg's 2x multiplier. Flagged for the PA to confirm or correct.
+`CostInputs.half_spread_est` is unchanged: it stays the half (per-side) AR estimate,
+unfloored (negatives zeroed before averaging, per spec/06). `CostModel.leg`
+reconstructs the full estimate as `2 * half_spread_est`, floors *that* against the
+locked constants (`_full_spread_floor`), and only then halves the floored value back
+down to the per-side charge -- before the entry leg's 2x multiplier, same as before.
+`floor_bound` is true when the floor binds on the full estimate (equivalently, when
+`half_spread_est` is at or below half the locked constant).
 """
 
 from __future__ import annotations
@@ -139,7 +140,14 @@ class CostModel:
             raise ValueError(f"unknown lane {lane!r}; expected one of {sorted(_LANE_MARKET)}")
         self._params = SPEC06_CRYPTO if self._is_crypto else SPEC06_EQUITY
 
-    def _spread_floor(self, inputs: CostInputs) -> float:
+    def _full_spread_floor(self, inputs: CostInputs) -> float:
+        """The floor on the full (round-trip) AR estimate, before halving.
+
+        The locked constants (`SPEC06_EQUITY.spread_floor_pct`, the tick size,
+        and the crypto tier constants) are full-spread floors (spec/06, PM
+        ruling on penumbra-specs PR #10); the per-side charge is half of
+        whichever value binds.
+        """
         if self._is_crypto:
             top20 = bool(inputs.top20_by_quote_volume)
             floor = SPEC06_CRYPTO.spread_floor_top_tier_pct if top20 else SPEC06_CRYPTO.spread_floor_other_pct
@@ -164,9 +172,10 @@ class CostModel:
         entry_mult = float(p.entry_spread_multiplier) if is_entry else 1.0
         participation_base = float(p.entry_participation_base) if is_entry else 1.0
 
-        floor = self._spread_floor(inputs)
-        floor_bound = inputs.half_spread_est <= floor
-        floored_half_spread = max(inputs.half_spread_est, floor)
+        full_est = 2.0 * inputs.half_spread_est
+        full_floor = self._full_spread_floor(inputs)
+        floor_bound = full_est <= full_floor
+        floored_half_spread = max(full_est, full_floor) / 2.0
         spread = floored_half_spread * entry_mult
 
         annualization = _CRYPTO_ANNUALIZATION if self._is_crypto else _EQUITY_ANNUALIZATION
