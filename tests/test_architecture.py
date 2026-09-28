@@ -5,6 +5,8 @@
   may import the future-aware store read path (harness.store.oracle), and only the
   backtester may import the labeler (spec/04: the labeler is quarantined and its
   output is joined to features only inside the backtester).
+- The entry-level function (harness/levels.py), which the exit-invariance test
+  targets, reads the as-of store only: no oracle, no labeler.
 """
 
 from __future__ import annotations
@@ -52,3 +54,16 @@ def test_oracle_and_labeler_are_quarantined():
                 m == "harness.labels" or m.startswith("harness.labels.") for m in mods):
             bad.append(f"{rel} imports harness.labels")
     assert not bad, bad
+
+
+def test_level_function_reads_only_the_as_of_store():
+    """harness/levels.py computes the exit levels the exit-invariance test targets
+    (spec/02 Leakage tests). It reads through the as-of reader only: it may not
+    import the oracle or the labeler, nor name the oracle's reader at all."""
+    path = ROOT / "harness" / "levels.py"
+    mods = _imports(path)
+    bad = sorted(m for m in mods if m.startswith("harness.store.oracle")
+                 or m == "harness.labels" or m.startswith("harness.labels."))
+    assert not bad, f"harness/levels.py imports {bad}"
+    assert "OracleReader" not in path.read_text()
+    assert "harness.store.reader.AsOfReader" in mods
