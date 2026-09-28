@@ -18,21 +18,18 @@ from pathlib import Path
 
 import pandas as pd
 
+from config.env import legacy_data_root
 from legacy.store import PITStore
 
-ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = ROOT / "data" / "raw"
-DEFAULT_DB = ROOT / "data" / "processed" / "pit.sqlite"
 
-
-def newest_snapshot() -> Path:
+def newest_snapshot(raw_dir: Path) -> Path:
     candidates = sorted(
-        list(RAW_DIR.glob("*prices_*.parquet")) + list(RAW_DIR.glob("*prices_*.csv")),
+        list(raw_dir.glob("*prices_*.parquet")) + list(raw_dir.glob("*prices_*.csv")),
         key=lambda p: p.stat().st_mtime,
     )
     if not candidates:
-        sys.exit("No snapshot found in data/raw/. Run ingest/make_synthetic.py "
-                 "or ingest/pull_prices.py first.")
+        sys.exit(f"No snapshot found in {raw_dir}. Run legacy.make_synthetic "
+                 "or legacy.pull_prices first.")
     return candidates[-1]
 
 
@@ -45,21 +42,22 @@ def load_raw(path: Path) -> pd.DataFrame:
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--raw", default=None, help="path to a snapshot file")
-    ap.add_argument("--db", default=str(DEFAULT_DB))
+    ap.add_argument("--db", default=None, help="path to the SQLite db")
     args = ap.parse_args()
 
-    raw_path = Path(args.raw) if args.raw else newest_snapshot()
+    raw_path = Path(args.raw) if args.raw else newest_snapshot(legacy_data_root() / "raw")
     df = load_raw(raw_path)
     print(f"Loading {raw_path.name}  ({len(df)} rows)")
 
-    Path(args.db).parent.mkdir(parents=True, exist_ok=True)
+    db_path = Path(args.db) if args.db else legacy_data_root() / "processed" / "pit.sqlite"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     # Fresh build: remove an existing db so loads are reproducible.
-    if Path(args.db).exists():
-        Path(args.db).unlink()
+    if db_path.exists():
+        db_path.unlink()
 
-    store = PITStore(args.db)
+    store = PITStore(str(db_path))
     n = store.write_prices(df)
-    print(f"Wrote {n} rows into {args.db}")
+    print(f"Wrote {n} rows into {db_path}")
     print(f"  store row count: {store.count()}")
     print(f"  trading days   : {len(store.trading_days())}")
     store.close()

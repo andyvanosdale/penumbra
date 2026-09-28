@@ -37,11 +37,11 @@ The labeler's output meets the features only inside the backtester.
 | Path | Component | Spec | Issue | Status |
 | --- | --- | --- | --- | --- |
 | `ingest/fetch/` | Raw-file fetcher: Binance, Sharadar and yfinance into a storage root (local, volume or S3); manifests; snapshot id | 02 Sources, Store | PR 19 | in review |
-| `config/env.py` | Every environment variable, read in one place | 02 Configuration | 2 | owed |
+| `config/env.py` | Every environment variable, read in one place | 02 Configuration | 2 | built (PR 23) |
 | `config/eras.py` | Per-lane era bounds | 03 | 17 | owed (still carries the news-project split) |
 | `config/params.py` | Every locked parameter as frozen data: the single input to the configuration hash | 01, 05, 06, 07 | 17 | owed |
 | `config/exclusions/` | Dated crypto base-asset exclusion list | 01 Eligibility | 6 | owed |
-| `harness/store/` | Schema, idempotent writer, as-of reader (single-date and windowed panel), read-time adjustment, lane calendars, bounded oracle reader | 02 Store, Trading calendars | 16, then 5 | owed |
+| `harness/store/` | Schema, idempotent writer, as-of reader (single-date and windowed panel), read-time adjustment, lane calendars, bounded oracle reader (`docs/store.md`) | 02 Store, Trading calendars | 16, then 5 | 16 in review; 5 owed |
 | `ingest/sharadar.py` | SEP, TICKERS, ACTIONS, DAILY, EVENTS, SFP (SPY) raw exports → store | 02 | 3 | owed; built against fixtures until a key exists |
 | `ingest/binance.py` | 1d and 1h klines → store; kline-derived listing; timestamp normalization | 02 | 4 | owed; gated on the screen's crypto result |
 | `harness/universe.py` | Per-lane eligibility and screens → `lane_membership` | 01 | 6 | owed |
@@ -56,7 +56,7 @@ The labeler's output meets the features only inside the backtester.
 | `harness/runrecord.py` | Configuration hash, run log, dev-hash count, reproduce-from-snapshot | 03 Run record | 17 | owed |
 | `harness/guards.py` | Holdout unlock; leakage-suite gate (no results written unless the leakage tests pass on this commit) | 02 Leakage tests, 03 | 18 (gate), 11 (holdout) | owed |
 | `experiments/` | Pre-registered one-off studies (the free-data screen) | DECISIONS "Free-data screen" | 15 | running on `screen/free-data` |
-| `legacy/` | The migrated news-project harness; only the day-of-week plumbing test uses it | 07 Controls (last line) | 1, 2 | baseline, frozen |
+| `legacy/` | The migrated news-project harness; only the day-of-week plumbing test uses it. Paths from `config.env` (writes under `$PENUMBRA_DATA_ROOT/legacy/`) | 07 Controls (last line) | 1, 2 | baseline, frozen |
 | `research_log/` | Pre-registration and outcome of every run | 03 | all runs | — |
 
 Import rules, enforced by `tests/test_architecture.py`:
@@ -89,41 +89,51 @@ anything. The run log, which can't be rebuilt, lives under the data root instead
   date when acceptance is known to be before 16:00 ET. An hourly kline → its close
   time. Vendor `lastupdated` is kept as metadata and never used.
 
-### Tables (issue 16 is authoritative for the columns; this is the contract)
+### Tables (issue 16 is authoritative for the columns; this is the contract; full columns in `docs/store.md`)
 
 | Table | Key | Content |
 | --- | --- | --- |
 | `snapshots` | `snapshot_id` | Created at, file count, the snapshot document from `ingest/fetch/snapshot.py` |
-| `calendar` | `(calendar, date)` | `nyse` (dates on which SEP carries any bar) and `utc` (every UTC day). Lanes map to calendars: `smallcap`, `discovered` → `nyse`; `crypto` → `utc` |
-| `symbols` | `(market, symbol, snapshot_id)` | Ticker, name, category, exchange, sector (TICKERS; `sector` is the one allowlisted non-point-in-time input, spec/04). For crypto: base, quote |
+| `calendar` | `(calendar, date, snapshot_id)` | `nyse` (dates on which SEP carries any bar) and `utc` (every UTC day), built per snapshot at load time. Lanes map to calendars: `smallcap`, `discovered` → `nyse`; `crypto` → `utc` |
+| `symbols` | `(market, symbol, snapshot_id)` | Ticker, name, category, exchange, sector (TICKERS; `sector` is the one allowlisted non-point-in-time input, spec/04). For crypto: base, quote. `available_at` = first listing date |
 | `bars_daily` | `(market, symbol, date, snapshot_id)` | Unadjusted `open, high, low, close, volume` (SEP OHLV imputed as `x × closeunadj / close`). Vendor `close` and `closeadj` kept for audit. `dollar_volume` (unadjusted close × volume, or kline quote volume) |
 | `bars_hourly` | `(market, symbol, ts, snapshot_id)` | Crypto 1h klines: open time (UTC), OHLCV, quote volume. `available_at` = close time |
-| `actions` | `(market, symbol, date, action, snapshot_id)` | Splits (factor), cash dividends (amount), ticker changes, spinoffs. Never merges or splits a permaticker |
+| `actions` | `(market, symbol, date, action, snapshot_id)` | Splits (`value` = shares after / before), cash dividends (`value` = amount), ticker changes, spinoffs. Never merges or splits a permaticker |
 | `listing` | `(market, symbol, event, date, snapshot_id)` | `listed` / `delisted` events from ACTIONS, with TICKERS first/last price date as fallback; crypto from first/last 1d kline. `reason` = ACTIONS action type; `exchange` at delisting (for the haircut class) |
 | `marketcap` | `(market, symbol, date, snapshot_id)` | Sharadar DAILY `marketcap` |
 | `events` | `(market, symbol, filing_date, snapshot_id)` | Sharadar EVENTS `eventcodes` |
-| `lane_membership` | `(lane, market, symbol, date, snapshot_id)` | Derived by the universe builder, with the screen values that admitted the name |
+| `lane_membership` | `(lane, market, symbol, date, snapshot_id)` | Derived by the universe builder, with the screen values that admitted the name (`screen_values`, JSON) |
 
 ### Read paths
 
-- `harness.store.reader.AsOfReader(store, snapshot_id)`
-  - `bars(market, symbols, start, end, as_of, adjust)`. A single-date read is
-    `start = end = as_of`. `adjust` ∈ {`none`, `split`, `split_div`}.
-  - `panel(lane, era, as_of)`: the one windowed read per (lane, era) that the
-    feature builder uses. The `available_at <= :as_of` filter is inside the SQL.
-  - `listed(market, date)`, `marketcap(...)`, `events(...)`, `calendar(lane, start, end)`.
+- `harness.store.reader.AsOfReader(conn, snapshot_id)`
+  - `bars(market, symbols, date, as_of, adjust)`: the single-date read.
+    `adjust` ∈ {`none`, `split`, `split_div`}.
+  - `panel(market, symbols | None, start, end, as_of, adjust)`: the one windowed
+    read per (lane, era) that the feature builder uses. The caller passes the
+    lane's market and the era window, so the store doesn't depend on
+    `config/eras.py`.
+  - `hourly(...)`, `symbols(...)`, `actions(...)`, `listing(...)`,
+    `listed(market, date, as_of)`, `marketcap(...)`, `events(...)`,
+    `lane_membership(lane, ...)` and `calendar(calendar_name, start, end, as_of)`.
+    A lane maps to its calendar through `harness.store.calendar_for_lane`.
   - Every method takes `as_of` and the SQL filters `available_at <= :as_of`. The
     store leakage test (issue 16) asserts this on every table and both paths.
-- `harness.store.oracle.OracleReader(store, snapshot_id, era, unlock)`: the
-  future-aware read, for the labeler only. Every read is bounded by the era's last
-  trading day, and it refuses to read into the holdout unless the logged unlock is
-  present (spec/03 Era boundaries).
+- `harness.store.oracle.OracleReader(conn, snapshot_id, last_date, holdout_start, unlocked)`:
+  the future-aware read, for the labeler only. The run supplies the era's last
+  trading day and the holdout start (issue 17's `config/eras.py`). Every read is
+  bounded by `last_date`, and it refuses to read into the holdout unless `unlocked`
+  is true, which the logged unlock sets (spec/03 Era boundaries). The bound is
+  also in the SQL.
 
 ### Adjustment
 
 Prices are stored unadjusted. As-of D, a bar dated t < D is multiplied by the
 product of the factors of actions with t < action date ≤ D. Actions dated after D
-are never applied (spec/02).
+are never applied (spec/02). Factors: a split of ratio r multiplies prices by 1/r
+(volume by r). A cash dividend multiplies prices by 1 − div / close_{ex−1}, where
+close_{ex−1} is the unadjusted close of the session before the ex-date. The spec
+gives no dividend formula; this is the standard one (`docs/store.md`).
 
 Two consequences shape the design:
 

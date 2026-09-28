@@ -5,8 +5,9 @@ Requires `yfinance` and network access. Run on your machine, not in a sandbox:
 
     python -m legacy.pull_prices --start 2018-01-01 --end 2024-12-31
 
-Output: data/raw/prices_<snapshot_date>.parquet  (never overwritten silently).
-Columns: ticker, date, open, high, low, close, adj_close, volume.
+Output: $PENUMBRA_DATA_ROOT/legacy/raw/prices_<snapshot_date>.parquet (never
+overwritten silently). Columns: ticker, date, open, high, low, close, adj_close,
+volume.
 
 The snapshot is immutable by convention: if it exists, this script refuses to
 overwrite it. To re-pull, pass --snapshot-date with a new date.
@@ -21,9 +22,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from config.env import legacy_data_root
 from legacy.universe import ALL_SYMBOLS
-
-RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
 
 
 def pull(symbols, start, end) -> pd.DataFrame:
@@ -63,8 +63,9 @@ def main():
     ap.add_argument("--snapshot-date", default=_dt.date.today().strftime("%Y-%m-%d"))
     args = ap.parse_args()
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RAW_DIR / f"prices_{args.snapshot_date}.parquet"
+    raw_dir = legacy_data_root() / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    out_path = raw_dir / f"prices_{args.snapshot_date}.parquet"
     if out_path.exists():
         sys.exit(f"Snapshot already exists (immutable): {out_path}\n"
                  "Pass a new --snapshot-date to re-pull.")
