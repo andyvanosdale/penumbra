@@ -10,6 +10,7 @@ thing documented.
 - `ingest-binance.md` — loading Binance public data into the store
 - `store.md` — table layout, `available_at` semantics, as-of adjustment, read paths
 - `costs.md` — the per-lane cost model: the Abdi-Ranaldo estimator, floors, slippage, fees, stress cases, breakeven multiple, `cost_inputs` and `cost_report`
+- `labels.md` — the quarantined labeler: entry, exits, delisting, corporate actions, era censoring, forward returns, bucket, per-leg costs
 - `leakage.md` — the three leakage tests, the invariance test machinery, running the gate
 - `running.md` — running a backtest, the run record, reproducing from a snapshot, the holdout unlock
 
