@@ -195,3 +195,15 @@ The fixture, `tests/fixtures/store.py`, is a reusable synthetic store. It contai
   are TICKERS current values, like `sector`. Point-in-time tickers come from the
   `actions` ticker changes. Point-in-time exchange at delisting is in
   `listing.exchange`.
+
+## Availability invariant
+
+For `calendar`, `bars_daily`, `actions`, `listing`, `marketcap` and `lane_membership`,
+the writer refuses any row whose `available_at` differs from its date
+(`harness.store.schema.AVAILABLE_ON_DATE`; spec/02 dates each of these on its own
+date). Consumers that read one panel as of the last date of a range (the universe
+builder, the feature builder) rely on this: every row dated t ≤ D is then known by
+D, so D's values cannot depend on which later dates share the batch. `events`
+(available the session after filing) and `bars_hourly` (available at the kline
+close) are the exceptions, and every consumer filters them on `available_at`
+explicitly, per date.
