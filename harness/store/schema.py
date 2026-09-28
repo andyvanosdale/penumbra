@@ -75,6 +75,18 @@ TABLES: dict[str, Table] = {t.name: t for t in (
 
 # Tables that are not point-in-time data and have no as-of read. The leakage test
 # requires every table in the database to be in TABLES or here.
+# Tables whose rows become known on the date they are dated (spec/02 Store: a bar
+# dated D has available_at D; a listing event, an ACTIONS row and a DAILY row are
+# available on their own date; calendar and lane membership are derived on D).
+# The writer enforces available_at == date for these tables. Batched reads (one
+# panel as of the last date of a range, docs/architecture.md "Adjustment") are
+# correct only because of this invariant: a row dated t <= D is then known by D.
+# `events` (available the next session after filing) and `bars_hourly`
+# (available at the kline close) are the exceptions, and every consumer reads
+# their `available_at` explicitly.
+AVAILABLE_ON_DATE = frozenset({"calendar", "bars_daily", "actions", "listing",
+                               "marketcap", "lane_membership"})
+
 NON_PIT_TABLES = {
     "meta": "schema version; not market data",
     "snapshots": "snapshot registry; every read names its snapshot",
