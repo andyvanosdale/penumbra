@@ -35,13 +35,15 @@ Feature and exit invariance share one generic mechanism,
   `levels(bars, position) -> (target, stop)`, holding the fill bar's open
   fixed (see the docstring for why).
 
-`harness/features.py` (issue 8) and `harness/labels.py` (issues 9, 10) do not
-exist yet. `tests/invariance/` proves this machinery against small reference
+Exit invariance on the real level function is
+`tests/labels/test_levels.py`: it writes each perturbed bar frame to a fresh
+store and recomputes `harness.levels.entry_levels` through `AsOfReader`
+(`docs/labels.md`). `harness/features.py` (issue 8) does not exist yet.
+`tests/invariance/` proves this machinery against small reference
 implementations written only in the test module, plus deliberately broken
 mutants that must fail (a `center=True` rolling window; a hard-stop range
-taken from the fill day; and others). **Issues 8, 9 and 10 must call
-`assert_feature_invariance` and `assert_exit_invariance` on their own,
-real modules** — the tests here do not exercise production code.
+taken from the fill day; and others). **Issue 8 must call `assert_feature_invariance` on its own, real
+module** — the tests in `tests/invariance/` do not exercise production code.
 
 ## The gate
 
