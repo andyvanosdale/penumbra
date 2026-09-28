@@ -18,7 +18,8 @@ import pandas as pd
 import pytest
 
 from harness import universe
-from harness.store import AsOfReader, upsert
+from harness.store import AsOfReader, connect, register_snapshot, upsert
+from harness.store.writer import StoreWriteError
 from harness.testing import perturbations
 from tests.fixtures.universe_store import D, SNAPSHOT, TRADING_DAYS, add_eligible_equity, finalize, new_store
 
@@ -130,3 +131,49 @@ def test_marketcap_and_listing_perturbation_after_d_leave_d_membership_unchanged
     after = universe.SmallcapBuilder().build(reader, "smallcap", [D, later])
     after_d = after[after["date"] == D].reset_index(drop=True)
     pd.testing.assert_frame_equal(before.reset_index(drop=True), after_d)
+
+
+@pytest.mark.parametrize("table,row", [
+    ("bars_daily", dict(market="us_equity", symbol="X", date="2020-01-02",
+                        close=10.0, available_at="2020-01-03")),
+    ("marketcap", dict(market="us_equity", symbol="X", date="2020-01-02",
+                       marketcap=1e9, available_at="2020-01-03")),
+    ("listing", dict(market="us_equity", symbol="X", event="listed", date="2020-01-02",
+                     source="tickers", available_at="2020-01-03")),
+])
+def test_writer_refuses_available_at_other_than_date(table, row):
+    """Pins the invariant the module docstring's single-windowed-read argument
+    depends on (`harness.store.schema.AVAILABLE_ON_DATE`; `docs/store.md`
+    "Availability invariant"): a row dated t but not known until some other
+    date is refused outright, so it can never reach a `build()` call.
+    """
+    conn = connect(":memory:")
+    register_snapshot(conn, "snap", "2020-01-01T00:00:00Z", 0, {})
+    with pytest.raises(StoreWriteError):
+        upsert(conn, table, "snap", [row])
+
+
+def test_build_at_d_matches_build_at_d_and_later_with_compliant_future_rows_in_every_table():
+    """The single-windowed-read design depends on every row this module reads
+    being known no later than its own date, which the store now enforces
+    (previous test). This checks the other half: a call given later dates,
+    whose fetched window legitimately contains ordinary rows dated after D in
+    bars_daily, marketcap AND listing, still agrees with a call asked only
+    for D.
+    """
+    d_idx = TRADING_DAYS.index(D)
+    later = TRADING_DAYS[d_idx + 60]
+    delist_date = TRADING_DAYS[d_idx + 30]  # a listing-table row strictly between D and later
+
+    conn = new_store()
+    add_eligible_equity(conn, "CTRL")
+    add_eligible_equity(conn, "FUTUREDELIST", delisted=delist_date)
+    finalize(conn)
+    reader = AsOfReader(conn, SNAPSHOT)
+
+    alone = universe.SmallcapBuilder().build(reader, "smallcap", [D])
+    with_later = universe.SmallcapBuilder().build(reader, "smallcap", [D, later])
+    with_later_d = with_later[with_later["date"] == D].reset_index(drop=True)
+
+    assert not alone.empty
+    pd.testing.assert_frame_equal(alone.reset_index(drop=True), with_later_d)

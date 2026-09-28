@@ -14,16 +14,27 @@ pandas `rolling`, which by construction only look at the current and earlier
 rows of a chronologically sorted series. This is what `docs/architecture.md`
 means by "windowed panel read for efficiency": one `panel`/`marketcap`/`listing`
 read spans the whole date range a build() call is asked for, `as_of` set to the
-last requested date, and every table this module reads (`bars_daily`,
-`marketcap`, `listing`, `symbols`) has `available_at` equal to its own row's
-date (or, for `symbols`, the first listing date), so a single read with
-`as_of = max(dates)` returns exactly the rows a per-date `as_of = D` read would
-return for each D individually — the SQL `available_at <= as_of` filter adds no
-visibility beyond the date-range filter already gives, because these tables are
-never restated after the fact in this store. The per-D screen values are then
-computed from that panel without ever looking past D, which the invariance test
-in `tests/universe/` checks directly (perturbing every bar after D leaves D's
-membership unchanged).
+last requested date, not per-date `as_of = D`. This is correct by construction,
+not by assumption: `harness.store.schema.AVAILABLE_ON_DATE` lists `bars_daily`,
+`marketcap` and `listing` (along with `calendar`, `actions` and
+`lane_membership`) as tables whose writer refuses any row whose `available_at`
+differs from its own date (`docs/store.md`, "Availability invariant"), so a row
+dated t <= D is always known by D regardless of what `as_of` a read used to
+fetch it — a single `as_of = max(dates)` read returns exactly the rows a
+per-date `as_of = D` read would for each requested D. `tests/universe/` pins
+this: a row that violates the invariant can't be written at all, and a call
+asked for extra, later dates leaves an earlier date's result unchanged even
+when every table carries ordinary (compliant) rows dated after it. The per-D
+screen values are computed from that one panel without ever looking past D,
+which the invariance tests also check directly by perturbing every bar (and,
+separately, every market-cap row and listing event) dated after D and
+confirming D's membership doesn't move.
+
+`symbols` and `exchange_on` (see "Equity eligibility" below) are the two
+exceptions to the windowed-read design: `symbols.available_at` is a symbol's
+first listing date, not "this row's own date", so it's fetched once with
+`as_of = max(dates)` for the (non-point-in-time) `category` only; `exchange`
+is point-in-time and fetched once per requested date instead.
 
 Missing bars are never forward-filled (spec/02 Trading calendars): a
 (symbol, session) slot with no bar counts as absent for both the 250-day
@@ -75,6 +86,9 @@ EQUITY_ANNUALIZATION = 252 ** 0.5
 # are still picked up (a symbol's listing date, or the 250-day lookback, can sit
 # well before the earliest date a caller asks to build).
 EARLIEST_CALENDAR_DATE = "1900-01-01"
+# A sentinel later than any real date, for "no listed/delisted event exists"
+# (see its use in _equity_screen_frame).
+NO_EVENT = "9999-12-31"
 
 # spec/01 Parameters: target universe size per lane per day (a sanity check, not
 # a filter). Crypto is out of scope for this module (issue 15 may remove the
@@ -259,13 +273,21 @@ def _equity_screen_frame(reader: AsOfReader, dates: list[str]) -> pd.DataFrame:
     min_delisted = (listing[listing["event"] == "delisted"].groupby("symbol")["date"].min()
                    if not listing.empty else pd.Series(dtype=object))
     sym_listing = pd.DataFrame({"symbol": symbols_list})
-    sym_listing["min_listed"] = sym_listing["symbol"].map(min_listed)
-    sym_listing["min_delisted"] = sym_listing["symbol"].map(min_delisted)
+    # A symbol with no listed/delisted event maps to NaN; comparing a string
+    # "date" column against a float NaN array raises under pandas' pyarrow-
+    # backed string dtype (it did in CI, not locally, since that comparison's
+    # behavior is dtype-backend dependent). NO_EVENT is a sentinel date after
+    # any real one, so "never listed" and "never delisted" are plain string
+    # comparisons against a string, valid on every dtype backend: a symbol
+    # with no listed event never satisfies `date >= min_listed`, and one with
+    # no delisted event always satisfies `date < min_delisted`.
+    sym_listing["min_listed"] = sym_listing["symbol"].map(min_listed).fillna(NO_EVENT)
+    sym_listing["min_delisted"] = sym_listing["symbol"].map(min_delisted).fillna(NO_EVENT)
     grid = grid.merge(sym_listing, on="symbol", how="left")
     # spec/02 Store: listed on D = a `listed` event on or before D and no
     # `delisted` event on or before D (harness.store.reader.AsOfReader.listed).
-    grid["listed_on_d"] = (grid["min_listed"].notna() & (grid["date"] >= grid["min_listed"])
-                           & (grid["min_delisted"].isna() | (grid["date"] < grid["min_delisted"])))
+    grid["listed_on_d"] = ((grid["date"] >= grid["min_listed"])
+                           & (grid["date"] < grid["min_delisted"]))
 
     grid["eligible"] = (grid["category_ok"] & grid["exchange_ok"] & grid["listed_on_d"]
                        & grid["complete_250"])
@@ -335,10 +357,10 @@ class DiscoveredBuilder:
     spec/01 gives `discovered` no market-cap condition at all, so a name missing
     a DAILY row and a name above the small-cap ceiling are both eligible here
     (subject to the shared screens), and a `smallcap` member may also appear in
-    `discovered` — the spec says the two lanes are never pooled into one model,
-    not that their membership is disjoint. Flagged in the PR for issue 6: read
-    literally, the lane table gives no de-duplication rule between the two
-    equity lanes, and this builder does not invent one.
+    `discovered` — confirmed on PR 32's review: the size targets fit
+    `discovered` being a superset, and "never pooled into one model" (spec/01,
+    `DECISIONS.md`) means the lanes are reported separately, not that their
+    membership is disjoint.
     """
 
     LANE = "discovered"

@@ -50,20 +50,32 @@ one, with `as_of` set to the latest requested date. The one exception is
 `exchange`, which is point-in-time (see below) and fetched once per requested
 date rather than folded into the windowed reads.
 
-This is safe because every table this module reads has `available_at` equal to
-its own row's date, or, for `symbols`, the symbol's first listing date:
-`bars_daily`, `marketcap` and `listing` are never restated after the fact in
-this store, so a single read with `as_of = max(dates)` returns exactly the
-rows a per-date `as_of = D` read would return for each requested D — the SQL
+This is correct by construction, not by assumption about vendor behavior:
+`harness.store.schema.AVAILABLE_ON_DATE` lists `bars_daily`, `marketcap` and
+`listing` (with `calendar`, `actions` and `lane_membership`) as tables whose
+writer refuses any row whose `available_at` differs from its own date
+(`docs/store.md`, "Availability invariant"). A row dated t <= D is therefore
+always known by D regardless of which `as_of` a read used to fetch it, so a
+single read with `as_of = max(dates)` returns exactly the rows a per-date
+`as_of = D` read would return for each requested D — the SQL
 `available_at <= as_of` filter adds no visibility beyond what the date-range
-filter already gives. The per-D screen values are then computed from that one
-panel without looking past D: every rolling computation (bar-completeness
-count, dollar-volume median, log-return vol) is a pandas `rolling` over a
-chronologically sorted per-symbol series, which by construction only reads the
-current and earlier rows. `tests/universe/test_invariance.py` checks this
-directly — both that a later requested date doesn't change an earlier date's
-computed values, and that perturbing every bar, market-cap row and listing
-event dated after D leaves D's membership unchanged.
+filter already gives. `symbols` is the one exception (`available_at` is a
+symbol's first listing date, not "this row's own date"), and only its
+allowlisted `category` is read this way; `exchange` is point-in-time and
+fetched once per requested date instead (see below).
+
+The per-D screen values are then computed from that one panel without looking
+past D: every rolling computation (bar-completeness count, dollar-volume
+median, log-return vol) is a pandas `rolling` over a chronologically sorted
+per-symbol series, which by construction only reads the current and earlier
+rows. `tests/universe/test_invariance.py` pins both halves of this: that a row
+violating the availability invariant can't be written at all, and that a call
+asked for extra, later dates leaves an earlier date's result unchanged even
+when every table (bars, market cap, listing) carries ordinary, compliant rows
+dated after it. It also checks the invariance directly — perturbing every bar
+(via `harness.testing.invariance.perturbations`) and, separately, every
+market-cap row and listing event dated after D leaves D's membership
+unchanged.
 
 Missing bars are never forward-filled (spec/02 Trading calendars): a
 (symbol, session) slot with no bar is absent from every rolling window that
@@ -83,6 +95,18 @@ On lane trading day D, a name is eligible when all of:
   `listed()` once per date, since both are the same "exists a date <= D" test
   and the vectorized form is what makes the one-windowed-read design possible.
 - A bar on each of the 250 lane trading days ending at D.
+
+**Relisting.** `min(listed date) <= D < min(delisted date)` takes the earliest
+event of each kind, so a name that delists and is later relisted under the
+same permaticker stays excluded from every date on and after its *first*
+delisting, even past the relisting date — it never satisfies
+`D < min(delisted date)` again. This matches `AsOfReader.listed`'s own SQL (an
+"exists a `delisted` event on or before D" check, not "the most recent event
+is `listed`"), so this module is consistent with the store, not introducing a
+new gap. `docs/store.md`'s "Open points" doesn't currently call this out; spec/02
+doesn't say whether a relisting should ever re-admit a name, so this is a store
+behavior to confirm with the PM, not something this module should diverge from
+unilaterally.
 
 **`category` and `exchange` (PM ruling on issue 6's Q3/Q4, penumbra-specs
 PR 10):**
@@ -124,15 +148,14 @@ constants.
   ending D, ×√252) above 40%; the **unadjusted** close on D at or above
   USD 2.00.
 
-**Flagged for the PM: `smallcap` and `discovered` membership is not
-deduplicated.** spec/01's lane table gives `discovered` no cap limit and no
-rule excluding a name that also qualifies for `smallcap`. Read literally, a
-name can be a member of both lanes on the same date; the two lanes are never
-*pooled into one model* (spec/01, `DECISIONS.md` "Three lanes, never pooled"),
-which is a different thing from disjoint membership. This module implements
-the literal reading and does not invent a de-duplication rule. If the intent
-was that `discovered` means "the uncapped names `smallcap` doesn't already
-have," that is a spec change, not an implementation detail.
+**`smallcap` and `discovered` membership is not deduplicated (confirmed by the
+PA, PR 32 review).** spec/01's lane table gives `discovered` no cap limit and
+no rule excluding a name that also qualifies for `smallcap`; the size targets
+fit `discovered` being a superset. A name can be a member of both lanes on the
+same date; the two lanes are never *pooled into one model* (spec/01,
+`DECISIONS.md` "Three lanes, never pooled"), which is a different thing from
+disjoint membership. Lanes are reported separately, never pooled — this module
+implements the literal reading.
 
 ## Sanity report
 
@@ -185,8 +208,31 @@ above the floor if the window were off by one session but not when the window
 correctly ends at D−1; the price floor on the unadjusted close across a
 3-for-1 split, with the split-and-dividend-adjusted series (the vol screen's
 input) checked to stay smooth across the same split; the writer round trip
-through the store; and two invariance checks — that a call asked for more
-dates doesn't change an earlier date's computed values, and that perturbing
-every bar after D (via `harness.testing.invariance.perturbations`'s delete /
+through the store; and, on the single-windowed-read design (see above), that
+a row violating the store's availability invariant can't be written at all,
+and that a call given extra, later dates matches one asked only for D even
+when bars, market cap and listing all carry ordinary rows dated after it.
+Two invariance checks cover the rest: that a call asked for more dates
+doesn't change an earlier date's computed values, and that perturbing every
+bar after D (via `harness.testing.invariance.perturbations`'s delete /
 multiply / shock / shuffle battery) and, separately, every market-cap row and
 listing event dated after D, leaves D's membership unchanged.
+
+`tests/universe/test_boundaries.py` pins exact values, not just pass/fail
+outcomes, against seven mutants a PR 32 review found that the rest of the
+suite let through — each one flipped a boundary and still passed all 33
+tests at the time: the liquidity window ending D−2 instead of D−1 (a
+monotonic dollar-volume ramp gives the three candidate 20-session windows
+three different medians, one `STEP` apart, so any one-session shift is
+caught exactly); `HISTORY_SESSIONS` off by one (a symbol with exactly 250
+complete sessions vs. one missing exactly the 250th session back); vol
+computed on the unadjusted series instead of the split-and-dividend-adjusted
+one (a split inside the vol window, where the true adjusted vol is a small
+fraction of what the unadjusted series's spurious jump would give); the vol
+window ending D−1 instead of D (a flat price through D−1 then one large jump
+on D, so a window that misses D reads zero vol); `ddof=0` instead of `1`
+(constructed so the two straddle the 40% floor); the price floor as `>`
+instead of `>=` (exactly USD 2.00, eligible); and the liquidity floor as `>=`
+instead of `>` (a median of exactly USD 500,000, ineligible). Each mutant was
+applied by hand and confirmed to fail at least one of these tests before this
+revision was sent for review again.
