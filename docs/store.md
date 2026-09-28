@@ -41,9 +41,10 @@ Conventions:
   `dollar_volume` is unadjusted close × volume for equities and the 1d kline quote
   volume for crypto.
 - `actions.value`: for `split`, shares after ÷ shares before (2.0 for a 2-for-1);
-  for `dividend`, cash per share. The loaders (issues 3 and 5) normalize the vendor
-  value to this. Ticker changes are rows in `actions`; they never merge or split a
-  permaticker.
+  for `dividend`, cash per share. `ingest/sharadar.py` (issues 3, 5) normalizes the
+  vendor value to this; `docs/ingest-sharadar.md` flags the split-direction
+  assumption it could not verify against a real export. Ticker changes are rows
+  in `actions`; they never merge or split a permaticker.
 - Indexes: each market-data table has a `(snapshot_id, market, date, …)` index for
   the windowed panel read.
 
