@@ -3,8 +3,11 @@ pandas>=2.0
 numpy>=1.24
 # Storage roots (local, volume, s3:// with s3fs) for raw files and the run log.
 fsspec>=2024.2
+# Raw-data fetcher (ingest/fetch_data.py). s3fs only when the storage root is s3://.
+requests>=2.31
+# s3fs>=2024.2
 
-# Legacy plumbing test's real-price pull (legacy/pull_prices.py); never read by a
+# yfinance: the free-data screen and the legacy plumbing test; never read by a
 # committed run (spec/02 Sources).
 yfinance>=0.2.40
 
