@@ -54,7 +54,7 @@ The labeler's output meets the features only inside the backtester.
 | `harness/backtest.py` | The join: features × labels × costs → trades; runs strategy, benchmark, variants, controls | 05 | 10 | owed |
 | `harness/evaluate.py` | Metrics, day-clustered z, equity curve, decision rule, regime split | 07 | 11 | owed |
 | `harness/controls.py` | Stale-signal placebo, planted-effect positive control | 07 Controls | 11 | owed |
-| `harness/runrecord.py` | Configuration hash, run log, dev-hash count, reproduce-from-snapshot | 03 Run record | 17 | owed |
+| `harness/runrecord.py` | Configuration hash, run log, dev-hash count, reproduce-from-snapshot | 03 Run record | 17 | built |
 | `harness/guards.py` | Holdout unlock; leakage-suite gate (no results written unless the leakage tests pass on this commit) | 02 Leakage tests, 03 | 18 (gate), 11 (holdout) | owed |
 | `experiments/` | Pre-registered one-off studies (the free-data screen) | DECISIONS "Free-data screen" | 15 | running on `screen/free-data` |
 | `legacy/` | The migrated news-project harness; only the day-of-week plumbing test uses it. Paths from `config.env` (writes under `$PENUMBRA_DATA_ROOT/legacy/`) | 07 Controls (last line) | 1, 2 | baseline, frozen |

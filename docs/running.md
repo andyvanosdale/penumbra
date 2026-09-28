@@ -7,9 +7,9 @@ How a run is identified, recorded and looked back up. See `docs/architecture.md`
 ## What identifies a run
 
 A run is `(lane, era, configuration hash, snapshot id)`. Lane and era come from
-`config/eras.py`. The snapshot id is the fetcher's manifest hash (PR 19, in
-review) and is out of scope here; the fields below carry it as an opaque
-string until the store (issue 16) and loaders (issues 3 and 4) are built.
+`config/eras.py`. The snapshot id is the fetcher's manifest hash
+(`docs/ingest-data.md`); the fields below carry it as an opaque string. Turning
+a snapshot's own files back into a store is "Reproduce from a snapshot" below.
 
 ## Configuration hash
 
@@ -75,7 +75,7 @@ A record carries:
 | --- | --- |
 | `run_id` | Opaque id, generated unless supplied |
 | `lane`, `era` | `config/eras.py` |
-| `kind` | One of `primary`, `placebo`, `positive_control`, `capped`, `close_fill`, `benchmark`, `plumbing`, `screen` |
+| `kind` | One of `primary`, `placebo`, `positive_control`, `capped`, `close_fill`, `benchmark`, `plumbing`, `screen`, `reproduce` |
 | `configuration_hash` | See above |
 | `snapshot_id` | The ingest snapshot the run read (opaque here; see "What identifies a run") |
 | `code_commit`, `dirty` | `harness.runrecord.code_commit()`: the git HEAD this run built, and whether the tree had uncommitted changes |
@@ -106,9 +106,10 @@ diagnostic variant and the benchmark (`docs/architecture.md`, "Runs").
 dev for that lane is reported next to the validation result." A validation
 record's `dev_config_hashes_before` is computed at record time from the
 existing `runs/*.json` files: every prior `dev`-era record for the same lane
-whose kind is not a control or diagnostic (`placebo`, `positive_control`,
-`capped`, `close_fill`, `benchmark`) contributes its `configuration_hash` to
-the set; the field is the size of that set.
+whose kind is not a control, diagnostic or `reproduce` (`placebo`,
+`positive_control`, `capped`, `close_fill`, `benchmark`, `reproduce`)
+contributes its `configuration_hash` to the set; the field is the size of
+that set.
 
 ## CLI
 
@@ -116,16 +117,56 @@ the set; the field is the size of that set.
 python -m harness.runrecord hash --lane <smallcap|discovered|crypto>
 python -m harness.runrecord list [--lane <lane>] [--era <dev|validation|holdout>]
 python -m harness.runrecord show <run_id>
+python -m harness.runrecord reproduce <snapshot_id> [--store PATH] [--force] [--sources sharadar]
 ```
 
-`list` and `show` read `PENUMBRA_DATA_ROOT` through `config.env.data_root()`;
-`hash` does not (it only needs the checkout's git HEAD).
+`list`, `show` and `reproduce` read `PENUMBRA_DATA_ROOT` through
+`config.env.data_root()`; `hash` does not (it only needs the checkout's git
+HEAD).
 
-## Reproduce from a snapshot (owed)
+## Reproduce from a snapshot
 
-`docs/architecture.md` names `python -m harness.runrecord reproduce
-<snapshot_id>`: rebuild the store from a named snapshot's raw files, after
-verifying their hashes, and never fetch. This needs the fetcher (PR 19, in
-review), the point-in-time store (issue 16, in parallel) and the Sharadar and
-Binance loaders (issues 3 and 4), none of which exist yet in this checkout.
-Part of #17; the PA is tracking the remainder once those land.
+A run is reproduced by rebuilding the store from its snapshot, never from a
+fresh download, because both vendors restate history (spec/02). `python -m
+harness.runrecord reproduce <snapshot_id>` (CLI above) does exactly that and
+nothing else: it never imports or calls a fetcher source's `fetch` or `plan`
+(`ingest/fetch/binance.py`, `ingest/fetch/sharadar.py`), so it cannot reach
+the network.
+
+1. **Read.** `snapshots/<snapshot_id>.json` is read from `PENUMBRA_DATA_ROOT`
+   (`config.env.data_root()`, via `ingest.fetch.storage.Storage`). An unknown
+   id raises immediately.
+2. **Verify first.** Every file the snapshot names is re-hashed
+   (`ingest.fetch.snapshot.verify`). Any mismatch or missing file aborts the
+   whole run with the list of bad paths; nothing is written.
+3. **Never download.** Verification and every loader below read only the
+   files already on the storage root.
+4. **Build a fresh store.** A new store is written at `--store` (default
+   `config.env.store_path()`, `PENUMBRA_STORE_PATH`): into a temp file next to
+   it, renamed into place only once every source has loaded cleanly. An
+   existing file at that path is left untouched unless `--force` is passed.
+5. **Dispatch per source.** Each source the snapshot actually contains
+   (`doc["sources"]`, non-empty) is loaded through a small registry
+   (`harness.runrecord.LOADERS`):
+   - `sharadar` → `ingest.sharadar.load_snapshot(conn, storage, snapshot_id)`;
+   - `binance` → raises "no loader: the crypto lane was removed (spec change
+     after issue 15)" — only if the snapshot actually has Binance files and
+     `--sources` doesn't exclude them. `--sources sharadar` selects sources
+     explicitly (comma-separated); default is every source the snapshot
+     contains.
+6. **Report.** On success, prints the row count per table, the snapshot id and
+   the store path, and writes a `reproduce` run-log record (`lane="all"`,
+   `era="dev"`, `kind="reproduce"`; see below).
+
+Two reproductions of the same snapshot produce stores with identical table
+contents (`tests/runs/test_reproduce.py`).
+
+A `reproduce` run has no lane and reads none of `config/params.py`'s locked
+parameters, so its `configuration_hash` is not the spec/03 analytical hash —
+it is just a SHA-256 over `{kind, snapshot_id, code_commit}`, enough to make
+the record reproducible. Its `research_log_entry` is the fixed string `"n/a:
+reproduce rebuilds the store, it is not a pre-registered run"`, since
+rebuilding the store is infrastructure, not a pre-registered run. `kind
+= "reproduce"` is excluded from the dev configuration-hash count ("The dev
+configuration-hash count" above), the same way a control or diagnostic
+variant is.
