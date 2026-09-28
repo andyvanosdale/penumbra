@@ -6,10 +6,6 @@ clean working tree and at least one test collected.
 the data root. `require_leakage_passed` is what a run calls before writing
 anything.
 
-`PENUMBRA_DATA_ROOT` is read directly from the environment for now; issue 2
-(`config/env.py`) is building the single place every environment variable is
-read, in parallel, and will switch this over.
-
 This module owns the leakage gate only. The holdout unlock (issue 11) is a
 second, separate responsibility of `harness/guards.py` per
 `docs/architecture.md` and is not implemented here.
@@ -20,7 +16,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import os
 import posixpath
 import subprocess
 import sys
@@ -30,6 +25,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 import fsspec
+
+from config import env as config_env
 
 RunFn = Callable[..., "subprocess.CompletedProcess[str]"]
 
@@ -120,9 +117,7 @@ def check(*, data_root: str | None = None, repo_root: str | Path | None = None, 
     """Run the leakage suite and write its record to
     `<data_root>/runs/leakage/<commit>.json`. Returns the record."""
 
-    data_root = data_root if data_root is not None else os.environ.get("PENUMBRA_DATA_ROOT")
-    if not data_root:
-        raise RuntimeError("PENUMBRA_DATA_ROOT is not set")
+    data_root = data_root if data_root is not None else config_env.data_root()
     record = run_leakage_suite(repo_root=repo_root, run=run)
     _write_json(_leakage_record_url(data_root, record["commit"]), record)
     return record

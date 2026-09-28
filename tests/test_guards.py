@@ -134,3 +134,21 @@ def test_check_writes_record_under_data_root(tmp_path):
     on_disk = json.loads(Path(_leakage_record_url(str(data_root), commit)).read_text())
     assert on_disk == record
     require_leakage_passed(str(data_root), commit)  # does not raise
+
+
+def test_check_falls_back_to_config_env_data_root(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo)
+    subprocess.run(["git", "config", "user.name", "test"], cwd=repo)
+    (repo / "f.txt").write_text("x")
+    subprocess.run(["git", "add", "."], cwd=repo)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo)
+
+    data_root = tmp_path / "data"
+    monkeypatch.setenv("PENUMBRA_DATA_ROOT", str(data_root))
+    record = check(repo_root=repo, run=_fake_run(returncode=0, tests=3))
+    commit = record["commit"]
+
+    assert Path(_leakage_record_url(str(data_root), commit)).exists()
