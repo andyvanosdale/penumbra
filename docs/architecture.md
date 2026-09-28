@@ -37,7 +37,7 @@ The labeler's output meets the features only inside the backtester.
 | Path | Component | Spec | Issue | Status |
 | --- | --- | --- | --- | --- |
 | `ingest/fetch/` | Raw-file fetcher: Binance, Sharadar and yfinance into a storage root (local, volume or S3); manifests; snapshot id | 02 Sources, Store | PR 19 | in review |
-| `config/env.py` | Every environment variable, read in one place | 02 Configuration | 2 | owed |
+| `config/env.py` | Every environment variable, read in one place | 02 Configuration | 2 | built (PR 23) |
 | `config/eras.py` | Per-lane era bounds | 03 | 17 | owed (still carries the news-project split) |
 | `config/params.py` | Every locked parameter as frozen data: the single input to the configuration hash | 01, 05, 06, 07 | 17 | owed |
 | `config/exclusions/` | Dated crypto base-asset exclusion list | 01 Eligibility | 6 | owed |
@@ -56,7 +56,7 @@ The labeler's output meets the features only inside the backtester.
 | `harness/runrecord.py` | Configuration hash, run log, dev-hash count, reproduce-from-snapshot | 03 Run record | 17 | owed |
 | `harness/guards.py` | Holdout unlock; leakage-suite gate (no results written unless the leakage tests pass on this commit) | 02 Leakage tests, 03 | 18 (gate), 11 (holdout) | owed |
 | `experiments/` | Pre-registered one-off studies (the free-data screen) | DECISIONS "Free-data screen" | 15 | running on `screen/free-data` |
-| `legacy/` | The migrated news-project harness; only the day-of-week plumbing test uses it | 07 Controls (last line) | 1, 2 | baseline, frozen |
+| `legacy/` | The migrated news-project harness; only the day-of-week plumbing test uses it. Paths from `config.env` (writes under `$PENUMBRA_DATA_ROOT/legacy/`) | 07 Controls (last line) | 1, 2 | baseline, frozen |
 | `research_log/` | Pre-registration and outcome of every run | 03 | all runs | — |
 
 Import rules, enforced by `tests/test_architecture.py`:
