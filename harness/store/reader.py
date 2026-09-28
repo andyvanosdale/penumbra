@@ -23,8 +23,18 @@ from harness.store.schema import CALENDARS, MARKETS
 # spec/04 Features: "Sector is Sharadar TICKERS `sector`, a current classification
 # with no history. It is the one input the store leakage test allowlists, and the
 # allowlist entry cites this line." `symbols.sector` is served as-is at every as-of
-# date; it is the only attribute the leakage test allowlists.
-NON_PIT_ALLOWLIST = {("symbols", "sector"): "spec/04 Features (Sector is Sharadar TICKERS `sector`)"}
+# date. spec/01 Eligibility extends this to `category` (also a current TICKERS value
+# with no vendor history) and, only as the fallback `exchange_on` takes when ACTIONS
+# carries no listing/exchange-change event for a name, to `symbols.exchange` too --
+# the primary, point-in-time answer for exchange is `exchange_on`, below, not
+# `symbols.exchange` directly.
+NON_PIT_ALLOWLIST = {
+    ("symbols", "sector"): "spec/04 Features (Sector is Sharadar TICKERS `sector`)",
+    ("symbols", "category"): "spec/01 Eligibility (category is a current value with no "
+                             "history, allowlisted like sector)",
+    ("symbols", "exchange"): "spec/01 Eligibility (TICKERS exchange, only as exchange_on's "
+                             "fallback when ACTIONS carries no listing/exchange-change event)",
+}
 
 SYMBOL_ATTRIBUTES = ("market", "symbol", "ticker", "name", "category", "exchange",
                      "sector", "base", "quote", "available_at")
@@ -195,6 +205,52 @@ class AsOfReader:
                " AND x.date <= ? AND x.available_at <= ?) "
                "GROUP BY l.market, l.symbol ORDER BY l.symbol")
         return self._frame(sql, params)
+
+    def exchange_on(self, market: str, symbols, date, as_of) -> pd.DataFrame:
+        """Point-in-time exchange for eligibility (spec/01 Eligibility: "the
+        exchange on D is taken from the most recent ACTIONS listing or
+        exchange-change event dated on or before D, and from TICKERS `exchange`
+        where ACTIONS carries none").
+
+        One row per symbol known as-of `as_of`: `exchange`, `source` (`actions`
+        when a `listing` row (`listed` or `delisted`, both carry the exchange in
+        effect at that event) dated on or before `date` is known as-of `as_of`,
+        else `tickers_fallback` for `symbols.exchange`, the allowlisted current
+        value), and `available_at` (that event's, or the symbol's first-listing
+        date for the fallback).
+        """
+        d, a = iso_date(date), iso_date(as_of)
+        m = _market(market)
+        syms = _symbols_arg(symbols)
+
+        params: list = [self.snapshot_id, m, a, d]
+        events = self._frame(
+            "SELECT symbol, date, exchange, available_at FROM listing "
+            "WHERE snapshot_id = ? AND market = ? AND available_at <= ? AND date <= ? "
+            "AND source = 'actions' AND exchange IS NOT NULL"
+            + _in("symbol", syms, params) + " ORDER BY symbol, date", params)
+        latest = (events.sort_values("date").groupby("symbol", as_index=False).last()
+                 if not events.empty else events)
+
+        base_params: list = [self.snapshot_id, m, a]
+        base = self._frame(
+            "SELECT market, symbol, exchange, available_at FROM symbols "
+            "WHERE snapshot_id = ? AND market = ? AND available_at <= ?"
+            + _in("symbol", syms, base_params) + " ORDER BY symbol", base_params)
+
+        if latest.empty:
+            out = base.copy()
+            out["source"] = "tickers_fallback"
+            return out[["market", "symbol", "exchange", "source", "available_at"]]
+
+        merged = base.merge(latest[["symbol", "exchange", "available_at"]], on="symbol",
+                            how="left", suffixes=("_fallback", "_actions"))
+        has_event = merged["exchange_actions"].notna()
+        merged["exchange"] = merged["exchange_actions"].where(has_event, merged["exchange_fallback"])
+        merged["available_at"] = merged["available_at_actions"].where(
+            has_event, merged["available_at_fallback"])
+        merged["source"] = pd.Series("actions", index=merged.index).where(has_event, "tickers_fallback")
+        return merged[["market", "symbol", "exchange", "source", "available_at"]]
 
     def marketcap(self, market: str, symbols, start, end, as_of) -> pd.DataFrame:
         params: list = [self.snapshot_id, _market(market), iso_date(start), iso_date(end),

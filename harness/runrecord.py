@@ -1,13 +1,20 @@
-"""Configuration hash, run log and CLI (spec/03 "Run record").
+"""Configuration hash, run log, reproduce-from-snapshot and CLI (spec/03 "Run
+record").
 
 A run is `(lane, era, configuration hash, snapshot id)` (docs/architecture.md
-"Runs"). This module owns the hash, the log under the data root, and a small
-CLI. The leakage-suite gate itself is issue 18's `harness/guards.py`; this
-module only carries its status as a field.
+"Runs"). This module owns the hash, the log under the data root, the
+reproduce-from-snapshot command, and a small CLI. The leakage-suite gate
+itself is issue 18's `harness/guards.py`; this module only carries its status
+as a field.
 
-The reproduce-from-snapshot command needs the fetcher (PR 19), the store
-(issue 16) and the loaders (issues 3 and 4) and is not implemented here
-(issue 17 tracks the remainder).
+`reproduce()` rebuilds a fresh store from a named snapshot's raw files, never
+fetching (spec/02 "A run is reproduced by rebuilding the store from its
+snapshot, never from a fresh download, because both vendors restate
+history"). It imports `ingest.fetch.storage` and `ingest.fetch.snapshot` for
+the storage root and hash verification, and each per-source loader (`LOADERS`)
+lazily, so nothing here ever imports a fetcher source's `fetch` or `plan`
+(`ingest/fetch/binance.py`, `ingest/fetch/sharadar.py`) or the `requests`
+library they use.
 """
 
 from __future__ import annotations
@@ -22,7 +29,7 @@ import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import fsspec
 
@@ -43,6 +50,7 @@ RUN_KINDS = (
     "benchmark",
     "plumbing",
     "screen",
+    "reproduce",
 )
 
 # Kinds excluded from the dev configuration-hash count (spec/03 "Use of
@@ -52,6 +60,11 @@ RUN_KINDS = (
 _CONTROL_AND_DIAGNOSTIC_KINDS = frozenset(
     {"placebo", "positive_control", "capped", "close_fill", "benchmark"}
 )
+
+# A `reproduce` run rebuilds the store from a snapshot; it is not a distinct
+# configuration a researcher chose to try, so it is excluded from the count
+# the same way a control or diagnostic variant is.
+_EXCLUDED_FROM_DEV_HASH_COUNT = _CONTROL_AND_DIAGNOSTIC_KINDS | {"reproduce"}
 
 
 def _json_default(obj: Any) -> Any:
@@ -215,7 +228,7 @@ class RunLog:
         for rec in self._iter_runs():
             if rec.get("lane") != lane or rec.get("era") != "dev":
                 continue
-            if rec.get("kind") in _CONTROL_AND_DIAGNOSTIC_KINDS:
+            if rec.get("kind") in _EXCLUDED_FROM_DEV_HASH_COUNT:
                 continue
             hashes.add(rec["configuration_hash"])
         return len(hashes)
@@ -247,6 +260,127 @@ class RunLog:
             yield rec
 
 
+# --------------------------------------------------------- reproduce-from-snapshot
+
+class ReproduceError(RuntimeError):
+    """A snapshot could not be reproduced: an unknown id, a verification
+    failure, or a source in the snapshot with no registered loader."""
+
+
+def _load_sharadar(conn: Any, storage: Any, snapshot_id: str) -> Any:
+    from ingest import sharadar as sharadar_mod
+    return sharadar_mod.load_snapshot(conn, storage, snapshot_id)
+
+
+def _no_binance_loader(conn: Any, storage: Any, snapshot_id: str) -> Any:
+    raise ReproduceError(
+        "no loader: the crypto lane was removed (spec change after issue 15)"
+    )
+
+
+# Per-source loaders a reproduced snapshot dispatches to. `binance` has none:
+# the crypto lane was removed after the free-data screen (docs/architecture.md,
+# "Status: v1 rule paused"), so a snapshot that still names Binance files
+# raises rather than silently skipping them.
+LOADERS: dict[str, Callable[[Any, Any, str], Any]] = {
+    "sharadar": _load_sharadar,
+    "binance": _no_binance_loader,
+}
+
+
+def _reproduce_configuration_hash(snapshot_id: str, commit_sha: str) -> str:
+    """A reproduce run has no lane and reads none of `config/params.py`'s
+    locked parameters, so spec/03's analytical `config_hash` does not apply;
+    this is just enough to make each reproduce record's hash reproducible and
+    tied to what it rebuilt."""
+    payload = {"kind": "reproduce", "snapshot_id": snapshot_id, "code_commit": commit_sha}
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def reproduce(
+    snapshot_id: str,
+    *,
+    data_root: str | None = None,
+    store: str | Path | None = None,
+    force: bool = False,
+    sources: list[str] | None = None,
+) -> tuple[Path, dict[str, int]]:
+    """Rebuild a fresh store at `store` (default `config.env.store_path()`)
+    from `snapshot_id`'s raw files under `data_root` (default
+    `config.env.data_root()`), never fetching.
+
+    Verifies every file the snapshot names before writing anything (an
+    unknown id or any mismatch/missing file raises `ReproduceError` with
+    nothing written). Dispatches each source the snapshot actually contains
+    (`sources`, default: every one) through `LOADERS`. Writes into a temp file
+    beside `store` and renames it into place only once every source has
+    loaded cleanly; an existing file at `store` is refused unless
+    `force=True`. Returns `(store_path, {table: row_count})`.
+    """
+    from ingest.fetch import snapshot as snapshot_mod
+    from ingest.fetch.storage import Storage
+
+    storage = Storage(data_root if data_root is not None else env_mod.data_root())
+
+    try:
+        bad = snapshot_mod.verify(storage, snapshot_id)
+    except FileNotFoundError:
+        raise ReproduceError(
+            f"unknown snapshot id {snapshot_id!r}: no snapshots/{snapshot_id}.json "
+            f"under {storage.root_url}"
+        ) from None
+    if bad:
+        raise ReproduceError(
+            f"snapshot {snapshot_id!r}: {len(bad)} file(s) failed verification "
+            "(tampered or missing); nothing written:\n  " + "\n  ".join(bad)
+        )
+    doc = storage.read_json(f"snapshots/{snapshot_id}.json")
+
+    store_path = Path(store) if store is not None else env_mod.store_path()
+    if store_path.exists() and not force:
+        raise ReproduceError(
+            f"refusing to overwrite existing store at {store_path} (pass --force)"
+        )
+
+    present = {name for name, files in (doc.get("sources") or {}).items() if files}
+    wanted = set(sources) if sources is not None else None
+    to_load = sorted(present if wanted is None else present & wanted)
+    unknown = [name for name in to_load if name not in LOADERS]
+    if unknown:
+        raise ReproduceError(f"no loader registered for source(s) {unknown}")
+
+    from harness.store import connect as store_connect
+    from harness.store.schema import TABLES
+
+    store_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = store_path.with_name(f"{store_path.name}.reproduce-{uuid.uuid4().hex}.tmp")
+    try:
+        conn = store_connect(tmp_path)
+        try:
+            for name in to_load:
+                LOADERS[name](conn, storage, snapshot_id)
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    tmp_path.replace(store_path)
+
+    row_counts: dict[str, int] = {}
+    conn = store_connect(store_path)
+    try:
+        for name in sorted(TABLES):
+            n = conn.execute(
+                f"SELECT COUNT(*) FROM {name} WHERE snapshot_id = ?", (snapshot_id,)
+            ).fetchone()[0]
+            if n:
+                row_counts[name] = n
+    finally:
+        conn.close()
+    return store_path, row_counts
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m harness.runrecord")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -260,6 +394,17 @@ def main(argv: list[str] | None = None) -> int:
 
     show_p = sub.add_parser("show", help="show one run record")
     show_p.add_argument("run_id")
+
+    repro_p = sub.add_parser(
+        "reproduce", help="rebuild the store from a named snapshot's raw files, never fetching"
+    )
+    repro_p.add_argument("snapshot_id")
+    repro_p.add_argument("--store", default=None, help="store path (default: $PENUMBRA_STORE_PATH)")
+    repro_p.add_argument("--force", action="store_true", help="overwrite an existing store file")
+    repro_p.add_argument(
+        "--sources", default=None,
+        help="comma-separated source names to load (default: every source the snapshot contains)"
+    )
 
     args = parser.parse_args(argv)
 
@@ -280,6 +425,31 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "show":
         print(canonical_json(run_log.get(args.run_id)))
+        return 0
+
+    if args.command == "reproduce":
+        sources = [s.strip() for s in args.sources.split(",") if s.strip()] if args.sources else None
+        try:
+            store_path, row_counts = reproduce(
+                args.snapshot_id, store=args.store, force=args.force, sources=sources,
+            )
+        except (env_mod.MissingEnvVar, ReproduceError) as exc:
+            raise SystemExit(str(exc)) from None
+        for table in sorted(row_counts):
+            print(f"{table}: {row_counts[table]} rows")
+        print(f"snapshot {args.snapshot_id}")
+        print(f"store {store_path}")
+
+        commit = code_commit()
+        run_log.record(
+            lane="all",
+            era="dev",
+            kind="reproduce",
+            configuration_hash=_reproduce_configuration_hash(args.snapshot_id, commit.sha),
+            snapshot_id=args.snapshot_id,
+            commit=commit,
+            research_log_entry="n/a: reproduce rebuilds the store, it is not a pre-registered run",
+        )
         return 0
 
     parser.error(f"unknown command {args.command!r}")
