@@ -47,7 +47,7 @@ The labeler's output meets the features only inside the backtester.
 | `harness/universe.py` | Per-lane eligibility and screens → `lane_membership` | 01 | 6 | owed |
 | `harness/features.py` | 14 features and `filing_2d`, as-of | 04 | 8 | owed |
 | `harness/labels.py` | Quarantined labeler: exit simulation, realized net exit return, forward returns, ex-post bucket, delisting treatment, era censoring | 04 Labels, 03 Era boundaries, 01 Delisting | 9 (exits with 10) | owed |
-| `harness/costs.py` | Abdi–Ranaldo spread, square-root slippage, fees, stress cases, breakeven multiple (`docs/costs.md`) | 06 | 7 | built (PR TBD) |
+| `harness/costs.py` | Abdi–Ranaldo spread, square-root slippage, fees, stress cases, breakeven multiple (`docs/costs.md`) | 06 | 7 | in review (PR 33) |
 | `harness/strategy.py` | Candidate rule, no re-entry, entry fills, capped and close-fill variants | 05 | 10 | owed |
 | `harness/benchmark.py` | 1,000 seeded, quintile-matched random-entry draws | 05 Benchmark | 10 | owed |
 | `harness/backtest.py` | The join: features × labels × costs → trades; runs strategy, benchmark, variants, controls | 05 | 10 | owed |
