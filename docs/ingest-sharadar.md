@@ -116,6 +116,22 @@ The vendor `close` and `closeadj` are kept as `close_vendor`/`closeadj_vendor`
 `closeunadj × volume_unadj`. `available_at` is the bar date; `lastupdated` is
 carried as metadata only, never used for availability.
 
+**Post-delisting prices, for the labeler (PR 30):** whether Sharadar SEP
+carries bars for a permaticker dated after its delisting event (for example an
+OTC continuation once a name leaves its primary exchange) is **unknown from
+this environment** — no real export was available to check. If SEP does carry
+such bars, this loader has no special handling for them and none is needed: a
+post-delisting bar is still dated and ticker-keyed like any other SEP row, so
+it maps to the same permaticker through the TICKERS window that covers its
+date (the window's `lastpricedate` would need to extend to cover it, which is
+itself a vendor fact this loader can't verify) and lands in `bars_daily`
+exactly like a pre-delisting bar, available under the same permaticker for the
+labeler's oracle read to find. If SEP does *not* carry such bars, no bars
+exist after the delisting date and the labeler's post-delisting-price lookup
+simply finds none. Either way this is a first-real-load check, not a design
+decision this loader makes: confirm on one known post-delisting name whether
+SEP has bars after its `listing.delisted` date, under the same permaticker.
+
 ## ACTIONS -> `actions`, and the split value assumption
 
 Normalized to the store's convention: `split.value` = shares after / shares
@@ -155,9 +171,19 @@ haircut class (spec/01) without parsing strings.
 Where a permaticker has no ACTIONS `listed` row, its earliest TICKERS
 `firstpricedate` becomes a `listed` event with `source='tickers_fallback'`.
 Where it has no ACTIONS delisting-reason row but TICKERS marks it
-`isdelisted`, its latest `lastpricedate` becomes a `delisted` event the same
-way, with `reason=None` (the fallback carries no reason). `available_at` is
-always the event date.
+`isdelisted`, the fallback `delisted` event is dated the first `nyse` session
+**after** its latest `lastpricedate`, not `lastpricedate` itself:
+`lastpricedate` is a real trading day (the name's last one), and a name is not
+listed on its own delisting date (spec/01, below), so dating the fallback
+there would wrongly drop that last trading day from `AsOfReader.listed`. An
+ACTIONS-sourced `delisted` row keeps its own date unchanged — it already means
+"delisted as of this date", not "last traded on this date", so no such shift
+applies to it. The fallback carries `reason=None`. `available_at` always
+equals the event's own date (`listing` is in PR 34's `AVAILABLE_ON_DATE`
+invariant). A `lastpricedate` on or after the last date the `nyse` calendar
+knows about (no next session yet) defers the fallback delisting rather than
+guessing a date: it is not written, and `LoadReport.deferred_fallback_delistings`
+counts it, the same way EVENTS defers a filing past the calendar horizon.
 
 A name is excluded on and after its delisting date (spec/01, "A name is not
 listed on its delisting date", penumbra-specs PR 10: `spec/01` now reads

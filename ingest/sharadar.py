@@ -135,6 +135,7 @@ class LoadReport:
     tables: dict[str, TableReport] = field(default_factory=dict)
     unmapped_rows: dict[str, pd.DataFrame] = field(default_factory=dict)
     deferred_events: int = 0
+    deferred_fallback_delistings: int = 0
     calendar_sessions: int = 0
 
     def summary(self) -> str:
@@ -144,6 +145,9 @@ class LoadReport:
             lines.append(f"{name}: read {t.rows_read}, wrote {t.rows_written}{extra}")
         if self.deferred_events:
             lines.append(f"EVENTS: {self.deferred_events} filings past the calendar horizon, deferred")
+        if self.deferred_fallback_delistings:
+            lines.append(f"listing: {self.deferred_fallback_delistings} tickers_fallback delistings "
+                         "past the calendar horizon, deferred")
         lines.append(f"calendar: {self.calendar_sessions} nyse sessions")
         return "\n".join(lines)
 
@@ -328,10 +332,21 @@ def _load_actions_and_listing(conn, snapshot_id: str, raw: pd.DataFrame,
                                      available_at=first["firstpricedate"]))
         if permaticker not in delisted_permatickers and bool(g["isdelisted"].any()):
             last = g.sort_values("lastpricedate").iloc[-1]
+            # A name is not listed on its delisting date (spec/01, as reworded
+            # by penumbra-specs PR 10), and `lastpricedate` is itself a real
+            # trading day -- the name's last one. Dating the fallback delisting
+            # there would wrongly drop that last trading day from `listed()`,
+            # so it is dated the first nyse session *after* lastpricedate
+            # instead; an ACTIONS-sourced `delisted` row keeps its own date
+            # (it already means "delisted as of this date", not "last traded
+            # on this date").
+            after = next_session(conn, snapshot_id, "nyse", last["lastpricedate"])
+            if after is None:
+                report.deferred_fallback_delistings += 1
+                continue
             listing_rows.append(dict(market="us_equity", symbol=permaticker, event="delisted",
-                                     date=last["lastpricedate"], reason=None,
-                                     exchange=last["exchange"], source="tickers_fallback",
-                                     available_at=last["lastpricedate"]))
+                                     date=after, reason=None, exchange=last["exchange"],
+                                     source="tickers_fallback", available_at=after))
     n_listing = upsert(conn, "listing", snapshot_id, listing_rows)
 
     report.tables["ACTIONS"] = TableReport(len(df), n_actions, len(unmapped))

@@ -262,7 +262,20 @@ def test_tickers_fallback_when_actions_has_no_listing_rows(loaded_conn):
     assert len(listed) == 1 and listed[0]["source"] == "tickers_fallback"
     assert listed[0]["date"] == sfx.FALLBACK_FIRST
     assert len(delisted) == 1 and delisted[0]["source"] == "tickers_fallback"
-    assert delisted[0]["date"] == sfx.FALLBACK_LAST
+    # Dated the first nyse session *after* lastpricedate, not lastpricedate
+    # itself: lastpricedate is the name's real last trading day, and a name
+    # is not listed on its own delisting date (spec/01).
+    day_after_last = sfx.WEEKDAYS[sfx.WEEKDAYS.index(sfx.FALLBACK_LAST) + 1]
+    assert delisted[0]["date"] == day_after_last
+    assert delisted[0]["date"] != sfx.FALLBACK_LAST
+
+
+def test_tickers_fallback_delisting_keeps_the_last_trading_day_listed(reader):
+    still = reader.listed(EQ, sfx.FALLBACK_LAST, sfx.FALLBACK_LAST)
+    assert sfx.FALLBACK_PT in set(still["symbol"])
+    day_after_last = sfx.WEEKDAYS[sfx.WEEKDAYS.index(sfx.FALLBACK_LAST) + 1]
+    gone = reader.listed(EQ, day_after_last, day_after_last)
+    assert sfx.FALLBACK_PT not in set(gone["symbol"])
 
 
 def test_active_symbol_has_no_delisted_event(loaded_conn):
