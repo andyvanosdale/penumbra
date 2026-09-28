@@ -4,12 +4,20 @@ Point-in-time construction, Delisting while a position is open; spec/04
 `filing_2d`). Issues 3 and 5.
 
 Nasdaq Data Link delivers each table as a zip of one CSV (``ingest/fetch/sharadar.py``,
-PR 19). This module only takes paths to those files; it never fetches them and never
-imports ``ingest.fetch``. ``load()`` is the entry point:
+PR 19, merged). ``load()`` is the entry point and only ever takes paths to those
+files; it never fetches anything and never imports ``ingest.fetch``:
 
     load(conn, snapshot_id, files={"SEP": ..., "TICKERS": ..., "ACTIONS": ...,
                                    "DAILY": ..., "EVENTS": ..., "SFP": ...},
         snapshot_doc=None, rejects_dir=None)
+
+``load_snapshot(conn, storage, snapshot_id)`` is a thin convenience wrapper added
+once PR 19 merged: it reads a fetcher snapshot document from an
+``ingest.fetch.storage.Storage`` root, resolves the Sharadar file per table from
+the document's own ``groups["sharadar"]`` mapping, copies each into a temporary
+directory and calls ``load``. It is the only place in this module that imports
+``ingest.fetch`` (for the ``Storage`` type only); the loading logic itself still
+never does.
 
 All six tables are required. Everything is written through
 ``harness.store.writer``, never straight SQL, so the writer's validation (a
@@ -79,8 +87,10 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as _dt
+import io
 import logging
 import sys
+import tempfile
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -140,22 +150,27 @@ class LoadReport:
 
 # --------------------------------------------------------------------- reading
 
-def _read_table(path: str | Path) -> pd.DataFrame:
-    """Read a Sharadar bulk-export file: a zip of one CSV, or a bare CSV.
+def _read_table_bytes(data: bytes, is_zip: bool, label: str = "<table>") -> pd.DataFrame:
+    """Parse a Sharadar bulk-export payload: a zip of one CSV, or a bare CSV.
 
     Everything comes back as strings; callers convert the columns they use.
     """
-    path = Path(path)
-    if path.suffix == ".zip":
-        with zipfile.ZipFile(path) as zf:
+    if is_zip:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
             names = [n for n in zf.namelist() if not n.endswith("/")]
             if len(names) != 1:
                 raise SharadarLoadError(
-                    f"{path}: expected exactly one file in the zip, found {names}")
+                    f"{label}: expected exactly one file in the zip, found {names}")
             with zf.open(names[0]) as fh:
                 return pd.read_csv(fh, dtype=str, keep_default_na=False, na_values=[""],
                                    quoting=csv.QUOTE_MINIMAL)
-    return pd.read_csv(path, dtype=str, keep_default_na=False, na_values=[""])
+    return pd.read_csv(io.BytesIO(data), dtype=str, keep_default_na=False, na_values=[""])
+
+
+def _read_table(path: str | Path) -> pd.DataFrame:
+    """Read a Sharadar bulk-export file straight from local disk."""
+    path = Path(path)
+    return _read_table_bytes(path.read_bytes(), path.suffix == ".zip", label=str(path))
 
 
 def _numeric(df: pd.DataFrame, columns: list[str]) -> None:
@@ -196,8 +211,16 @@ def _ticker_ranges(tickers_raw: pd.DataFrame) -> pd.DataFrame:
 
 def _map_permaticker(df: pd.DataFrame, ranges: pd.DataFrame, ticker_col: str,
                      date_col: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Attach `permaticker` to each row of `df` by (ticker, date) against the
-    TICKERS price-date windows. Returns (mapped, unmapped).
+    """Attach `permaticker` and the matched window's `exchange` to each row of
+    `df` by (ticker, date) against the TICKERS price-date windows. Returns
+    (mapped, unmapped).
+
+    The exchange is carried through from the exact window a row matched, not
+    looked up again afterward by (permaticker, ticker) alone: a ticker can have
+    more than one window (a rename, or the same ticker relisted on a different
+    exchange after a gap -- issue 5's "the exchange on D" needs the window's own
+    exchange, which a (permaticker, ticker) lookup after the fact would get
+    wrong whenever two windows share a ticker).
 
     Unmapped rows never raise; the caller logs and reports them (issue 3: "Log
     the unmapped count and write the unmapped rows to a rejects report, never
@@ -205,7 +228,7 @@ def _map_permaticker(df: pd.DataFrame, ranges: pd.DataFrame, ticker_col: str,
     """
     left = df.reset_index(drop=True).copy()
     left["_row"] = left.index
-    r = ranges[["ticker", "permaticker", "firstpricedate", "lastpricedate"]].rename(
+    r = ranges[["ticker", "permaticker", "firstpricedate", "lastpricedate", "exchange"]].rename(
         columns={"ticker": "_range_ticker"})
     merged = left.merge(r, left_on=ticker_col, right_on="_range_ticker", how="left")
     in_range = (merged["firstpricedate"].notna()
@@ -214,7 +237,7 @@ def _map_permaticker(df: pd.DataFrame, ranges: pd.DataFrame, ticker_col: str,
     hits = merged[in_range].sort_values("firstpricedate").drop_duplicates("_row", keep="last")
     mapped_rows = set(hits["_row"])
     mapped = left[left["_row"].isin(mapped_rows)].merge(
-        hits[["_row", "permaticker"]], on="_row").drop(columns="_row")
+        hits[["_row", "permaticker", "exchange"]], on="_row").drop(columns="_row")
     unmapped = left[~left["_row"].isin(mapped_rows)].drop(columns="_row")
     return mapped, unmapped
 
@@ -275,28 +298,34 @@ def _load_actions_and_listing(conn, snapshot_id: str, raw: pd.DataFrame,
     })
     n_actions = upsert(conn, "actions", snapshot_id, action_rows)
 
-    exch = mapped.merge(ranges[["permaticker", "ticker", "exchange"]],
-                        on=["permaticker", "ticker"], how="left")
-
+    # `exchange` is already the matched window's own value (from _map_permaticker),
+    # so both event kinds record the exchange in effect at that specific event --
+    # spec/01 Eligibility: "the exchange on D is taken from the most recent
+    # ACTIONS listing or exchange-change event dated on or before D". Sharadar
+    # has no confirmed dedicated "exchange changed" action type (docs/ingest-
+    # sharadar.md); a move to a new exchange is assumed to show up as a
+    # delisting-type row on the old window followed by a `listed` row on the
+    # new one, both already handled here.
     listing_rows = []
-    for _, r in exch[exch["action"] == LISTED_ACTION].iterrows():
+    for _, r in mapped[mapped["action"] == LISTED_ACTION].iterrows():
         listing_rows.append(dict(market="us_equity", symbol=r["permaticker"], event="listed",
-                                 date=r["date"], reason=None, exchange=None, source="actions",
-                                 available_at=r["date"]))
-    delisted = exch[exch["action"].isin(DELISTING_REASONS)]
+                                 date=r["date"], reason=None, exchange=r["exchange"],
+                                 source="actions", available_at=r["date"]))
+    delisted = mapped[mapped["action"].isin(DELISTING_REASONS)]
     for _, r in delisted.iterrows():
         listing_rows.append(dict(market="us_equity", symbol=r["permaticker"], event="delisted",
                                  date=r["date"], reason=r["action"], exchange=r["exchange"],
                                  source="actions", available_at=r["date"]))
 
-    listed_permatickers = set(exch.loc[exch["action"] == LISTED_ACTION, "permaticker"])
+    listed_permatickers = set(mapped.loc[mapped["action"] == LISTED_ACTION, "permaticker"])
     delisted_permatickers = set(delisted["permaticker"])
     for permaticker, g in ranges.groupby("permaticker"):
         if permaticker not in listed_permatickers:
-            d = g["firstpricedate"].min()
+            first = g.sort_values("firstpricedate").iloc[0]
             listing_rows.append(dict(market="us_equity", symbol=permaticker, event="listed",
-                                     date=d, reason=None, exchange=None,
-                                     source="tickers_fallback", available_at=d))
+                                     date=first["firstpricedate"], reason=None,
+                                     exchange=first["exchange"], source="tickers_fallback",
+                                     available_at=first["firstpricedate"]))
         if permaticker not in delisted_permatickers and bool(g["isdelisted"].any()):
             last = g.sort_values("lastpricedate").iloc[-1]
             listing_rows.append(dict(market="us_equity", symbol=permaticker, event="delisted",
@@ -439,36 +468,86 @@ def load(conn, snapshot_id: str, files: Mapping[str, str | Path],
     return report
 
 
+def load_snapshot(conn, storage, snapshot_id: str,
+                  rejects_dir: str | Path | None = None) -> LoadReport:
+    """Load a Sharadar snapshot straight from a fetcher storage root (PR 19).
+
+    Reads `snapshots/<snapshot_id>.json` from `storage` (`ingest.fetch.storage.Storage`)
+    and takes the Sharadar file per table from the document's `groups["sharadar"]`
+    mapping (table -> the exact stored path the snapshot named, which may sit
+    under a `_v/<version>/` prefix for a restated file -- never a path guessed
+    from the table name, since a vendor restatement lands beside the old file
+    and only the snapshot document says which one a given store build reads).
+    Each file is copied into a temporary directory (`Storage` may be S3-backed)
+    and `load` runs against those local copies with `snapshot_doc=doc`, which
+    registers the snapshot with the fetcher's own document rather than a
+    synthesized one.
+    """
+    doc = storage.read_json(f"snapshots/{snapshot_id}.json")
+    if doc is None:
+        raise SharadarLoadError(f"snapshot {snapshot_id!r} not found at snapshots/{snapshot_id}.json")
+    groups = (doc.get("groups") or {}).get("sharadar") or {}
+    missing = [t for t in REQUIRED_TABLES if t not in groups]
+    if missing:
+        raise SharadarLoadError(
+            f"snapshot {snapshot_id!r}: groups.sharadar is missing table(s) {missing}")
+
+    with tempfile.TemporaryDirectory(prefix="sharadar-snapshot-") as tmp:
+        files: dict[str, Path] = {}
+        for table in REQUIRED_TABLES:
+            rel = groups[table]
+            dest = Path(tmp) / f"{table}{Path(rel).suffix}"
+            dest.write_bytes(storage.read_bytes(rel))
+            files[table] = dest
+        return load(conn, snapshot_id, files, snapshot_doc=doc, rejects_dir=rejects_dir)
+
+
 # ----------------------------------------------------------------------- CLI
+
+def _default_rejects_dir() -> str | None:
+    try:
+        root = env.data_root()
+    except env.MissingEnvVar:
+        return None
+    return str(Path(root) / "rejects") if env.is_local_root(root) else None
+
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="python -m ingest.sharadar")
     sub = parser.add_subparsers(dest="command", required=True)
+
     p_load = sub.add_parser("load", help="load SEP/TICKERS/ACTIONS/DAILY/EVENTS/SFP into the store")
     p_load.add_argument("--snapshot-id", required=True)
     p_load.add_argument("--file", action="append", default=[], metavar="NAME=PATH",
                         help="repeatable; NAME is one of " + ", ".join(REQUIRED_TABLES))
     p_load.add_argument("--rejects-dir", default=None,
                         help="default: <PENUMBRA_DATA_ROOT>/rejects")
+
+    p_snap = sub.add_parser("load-snapshot",
+                            help="load the Sharadar files a fetcher snapshot document names")
+    p_snap.add_argument("--snapshot-id", required=True)
+    p_snap.add_argument("--root", default=None, help="storage root (default: $PENUMBRA_DATA_ROOT)")
+    p_snap.add_argument("--rejects-dir", default=None,
+                        help="default: <PENUMBRA_DATA_ROOT>/rejects")
+
     args = parser.parse_args(argv)
-
-    files: dict[str, str] = {}
-    for item in args.file:
-        name, sep, path = item.partition("=")
-        if not sep:
-            parser.error(f"--file expects NAME=PATH, got {item!r}")
-        files[name] = path
-
-    rejects_dir = args.rejects_dir
-    if rejects_dir is None:
-        try:
-            rejects_dir = str(Path(env.data_root()) / "rejects") if env.is_local_root(env.data_root()) else None
-        except env.MissingEnvVar:
-            rejects_dir = None
-
+    rejects_dir = args.rejects_dir if args.rejects_dir is not None else _default_rejects_dir()
     conn = connect(env.store_path())
-    report = load(conn, args.snapshot_id, files, rejects_dir=rejects_dir)
+
+    if args.command == "load":
+        files: dict[str, str] = {}
+        for item in args.file:
+            name, sep, path = item.partition("=")
+            if not sep:
+                parser.error(f"--file expects NAME=PATH, got {item!r}")
+            files[name] = path
+        report = load(conn, args.snapshot_id, files, rejects_dir=rejects_dir)
+    else:
+        from ingest.fetch.storage import Storage
+        root = args.root or env.data_root()
+        report = load_snapshot(conn, Storage(root), args.snapshot_id, rejects_dir=rejects_dir)
+
     print(report.summary())
     return 0
 

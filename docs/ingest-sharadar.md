@@ -10,10 +10,12 @@ Issues 3 and 5.
 every semantic below is reconstructed from public third-party documentation
 and schema reproductions (cited in the PR), not verified against a real
 export. "First real load" below marks what must be checked once
-`NASDAQ_DATA_LINK_API_KEY` exists and PR 19's fetcher (`ingest/fetch/sharadar.py`)
-has pulled real files.
+`NASDAQ_DATA_LINK_API_KEY` exists and PR 19's fetcher (`ingest/fetch/sharadar.py`,
+merged) has pulled real files.
 
 ## Running it
+
+Straight from paths (`load()`), the same on any environment:
 
 ```bash
 python -m ingest.sharadar load --snapshot-id <id> \
@@ -27,10 +29,26 @@ python -m ingest.sharadar load --snapshot-id <id> \
 
 All six `--file NAME=PATH` are required; each path is a raw export (a zip of
 one CSV, as Nasdaq Data Link bulk exports deliver it, or a bare CSV). The
-store path comes from `config.env.store_path()` (`PENUMBRA_STORE_PATH`); the
-loader never imports `ingest.fetch` and never fetches anything itself — PR 19
-supplies the paths, from a snapshot document if one is passed programmatically
-(`load(conn, snapshot_id, files, snapshot_doc=...)`).
+store path comes from `config.env.store_path()` (`PENUMBRA_STORE_PATH`).
+`load()` never imports `ingest.fetch` and never fetches anything itself.
+
+Or from a fetcher snapshot document (`load_snapshot()`), once PR 19 has
+written one:
+
+```bash
+python -m ingest.sharadar load-snapshot --snapshot-id <id> [--root $PENUMBRA_DATA_ROOT]
+```
+
+This reads `snapshots/<id>.json` from an `ingest.fetch.storage.Storage` root,
+takes the Sharadar file per table from the document's own `groups["sharadar"]`
+mapping (the exact stored path the snapshot named — a restated file lives
+under `_v/<version>/` and is read only when the snapshot itself points there,
+never guessed from the table name), copies each into a temporary local
+directory and calls `load` with `snapshot_doc` set to the fetcher's own
+document (so the store's `snapshots` row is the one the snapshot id actually
+hashed, not a synthesized one). This is the one place in the module that
+imports `ingest.fetch` (for the `Storage` type only, added once PR 19 merged);
+`load()` itself still never does.
 
 Unmapped rows (a ticker/date pair with no matching TICKERS window) are never
 dropped silently: they are logged, returned in the `LoadReport`, and written to
@@ -128,10 +146,11 @@ delisting-reason types spec/01 names for the haircut classes —
 `acquisitionby`, `mergerto`, `voluntarydelisting`, `bankruptcyliquidation`,
 `regulatorydelisting` — or the generic `delisted` (assumed present as a
 catch-all when no specific reason is known) is a `delisted` event, with
-`reason` set to that action type. `exchange` is the exchange of the TICKERS
-window the row mapped through (the listing exchange in effect at the event),
-so the labeler can select the Nasdaq 0.45× vs. NYSE/American 0.70× haircut
-class (spec/01) without parsing strings.
+`reason` set to that action type. `exchange` on **both** event kinds is the
+exchange of the exact TICKERS window the row mapped through (never a second,
+looser lookup by permaticker alone -- see "Ticker -> permaticker mapping"
+above), so the labeler can select the Nasdaq 0.45× vs. NYSE/American 0.70×
+haircut class (spec/01) without parsing strings.
 
 Where a permaticker has no ACTIONS `listed` row, its earliest TICKERS
 `firstpricedate` becomes a `listed` event with `source='tickers_fallback'`.
@@ -140,24 +159,50 @@ Where it has no ACTIONS delisting-reason row but TICKERS marks it
 way, with `reason=None` (the fallback carries no reason). `available_at` is
 always the event date.
 
+A name is excluded on and after its delisting date (spec/01, "A name is not
+listed on its delisting date", penumbra-specs PR 10: `spec/01` now reads
+"excluded on and after their delisting date", matching `spec/02`'s listing
+table, which this loader and `AsOfReader.listed` already implemented before
+the wording caught up — see `docs/store.md` "Open points", now resolved).
+
+## Point-in-time exchange (spec/01 Eligibility; penumbra-specs PR 10, "Eligibility fields")
+
+Eligibility's `exchange` on D is **not** `symbols.exchange` (TICKERS' current
+value) — it is `AsOfReader.exchange_on(market, symbols, date, as_of)`
+(`harness/store/reader.py`): the exchange of the most recent `listing` row
+(`listed` or `delisted`, `source='actions'`) dated on or before D, known as-of;
+`symbols.exchange` only when no such row exists yet, flagged
+`source='tickers_fallback'`. Both tiers respect `available_at` (tested:
+`test_exchange_on_never_leaks_a_future_event`).
+
+**Flagged assumption:** no Sharadar ACTIONS action type dedicated purely to an
+exchange change (independent of a listing/delisting) was confirmed from this
+environment. The spec's decision text ("Exchange changes are recorded as
+actions, so the point-in-time value is available for most names") is
+implemented here as: a genuine move to a new exchange shows up as a
+delisting-type row on the old TICKERS window followed by a `listed` row on a
+new one (same ticker and permaticker allowed, per the mapping note above) —
+both already handled by the listing logic, with no schema or action-type
+change needed. If a real export instead carries a distinct action type for
+this (an `exchangechange`/`relisted` row with no accompanying delist/relist),
+it is silently *not* picked up today — a gap to close once a real export shows
+what that row looks like, not a silently wrong point-in-time answer, since the
+untouched case simply keeps the previous known exchange rather than guessing.
+
+`category` is allowlisted like `sector` (`NON_PIT_ALLOWLIST` in
+`harness/store/reader.py`): Sharadar keeps no history for it, so a name
+reclassified out of common stock mid-era reads as never having been common
+stock at any as-of date — an accepted risk (penumbra-specs PR 10), not a bug.
+
 ## TICKERS -> `symbols`
 
 One row per permaticker: `ticker` (current), `name`, `category`, `exchange`,
 `sector` (current values from the TICKERS row with the latest
 `lastpricedate`), `available_at` = the earliest `firstpricedate` across that
 permaticker's TICKERS rows (the first-ever listing, not the most recent
-rename).
-
-**Open gap, for the PM:** `category` and `exchange` are current TICKERS
-values, exactly like `sector` (`docs/store.md` "Open points"), but only
-`sector` is allowlisted as a non-point-in-time input by the store leakage test
-(spec/04). A name whose category or exchange changed (an OTC name that
-up-listed to NYSE, for instance) would be screened by issue 6's eligibility
-rule using its *current* category/exchange at every historical as-of date,
-not the one that applied on that date. This loader does not attempt to
-reconstruct historical category/exchange — there is no ACTIONS row type for
-it — so the gap is inherited by issue 6's universe builder, which should
-flag it rather than assume point-in-time correctness.
+rename). `category` and `exchange` here are current values, same as `sector`
+(now allowlisted -- see above); use `exchange_on`, not `symbols.exchange`
+directly, wherever the point-in-time exchange matters.
 
 ## DAILY -> `marketcap`
 
@@ -207,21 +252,28 @@ filing two weeks later is available the Tuesday after, not the Monday) covers:
   stored but left for issue 6 to exclude;
 - an EVENTS row filed on a Friday (available the next Monday) and one filed on
   the Friday before the simulated holiday (available the Tuesday after);
-- SFP rows for SPY and another fund, the other fund filtered out.
+- SFP rows for SPY and another fund, the other fund filtered out;
+- a name delisted from NASDAQ and relisted on NYSE mid-range under the same
+  ticker and permaticker (`MOVE`, two disjoint TICKERS windows), for
+  `exchange_on`.
 
 `tests/ingest/test_sharadar.py` reuses `tests/store/test_leakage.py`'s `READS`,
 `_bound` and `_truncated` helpers against the loaded store, scoped to the
 tables this loader writes (`calendar`, `symbols`, `bars_daily`, `actions`,
 `listing`, `marketcap`, `events`; `bars_hourly` and `lane_membership` are other
-units' concern and are never populated here).
+units' concern and are never populated here), plus dedicated tests for
+`exchange_on` (the NASDAQ -> NYSE move, the TICKERS fallback, and a leakage
+check) and for `load_snapshot` (reading a fetcher-shaped `snapshots/<id>.json`
+with a `_v/<version>/` path, and a missing-document error).
 
 ## What has not been verified
 
-Nothing in this loader has run against a real Sharadar export. Beyond the two
+Nothing in this loader has run against a real Sharadar export. Beyond the
 flagged assumptions above (TICKERS carrying one row per historical ticker per
-permaticker; the split value's direction), a first real load should also
-confirm: `isdelisted` is encoded as one of the truthy strings this loader
-recognizes (`Y`/`yes`/`true`/`1`, case-insensitive) rather than a boolean
-column pandas would read differently; ACTIONS carries no `permaticker` column
-that would make this join unnecessary; and DAILY's `marketcap` is already in
-dollars (not thousands or another scale).
+permaticker; the split value's direction; exchange changes surfacing as a
+delisting-type row plus a `listed` row rather than a dedicated action type), a
+first real load should also confirm: `isdelisted` is encoded as one of the
+truthy strings this loader recognizes (`Y`/`yes`/`true`/`1`, case-insensitive)
+rather than a boolean column pandas would read differently; ACTIONS carries no
+`permaticker` column that would make this join unnecessary; and DAILY's
+`marketcap` is already in dollars (not thousands or another scale).

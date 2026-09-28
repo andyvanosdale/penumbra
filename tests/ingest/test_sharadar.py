@@ -6,6 +6,7 @@ against fixtures, never the network (`docs/architecture.md` Testing).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -129,6 +130,46 @@ def test_unmapped_rows_are_rejected_not_silent(tmp_path):
     assert "NOPE" in reject_file.read_text()
 
 
+def test_load_snapshot_reads_the_fetcher_document(tmp_path):
+    from ingest.fetch.storage import Storage
+
+    storage = Storage(str(tmp_path / "data-root"))
+    raw_files = sfx.write_files(tmp_path / "scratch")
+    groups = {}
+    files_doc = {}
+    for table, local_path in raw_files.items():
+        # A Sharadar file restated under a versioned path, per PR 19's layout,
+        # to prove load_snapshot reads the exact path the document names.
+        rel = f"raw/sharadar/{table}/_v/2026Q3/{table}-2026Q3.zip"
+        storage.write_bytes(rel, local_path.read_bytes())
+        groups[table] = rel
+        files_doc[rel] = {"size": storage.size(rel), "sha256": storage.sha256(rel)}
+
+    doc = {"snapshot_id": "fetcher-snap-1", "created_at": "2026-04-01T00:00:00Z",
+          "file_count": len(files_doc), "files": files_doc,
+          "sources": {"sharadar": sorted(groups.values())}, "groups": {"sharadar": groups}}
+    storage.write_json("snapshots/fetcher-snap-1.json", doc)
+
+    conn = connect(":memory:")
+    rpt = sharadar.load_snapshot(conn, storage, "fetcher-snap-1")
+
+    assert rpt.tables["SEP"].rows_written == len(sfx.sep_df())
+    row = conn.execute("SELECT document FROM snapshots WHERE snapshot_id = ?",
+                       ("fetcher-snap-1",)).fetchone()
+    assert row is not None
+    stored_doc = json.loads(row[0])
+    assert stored_doc["created_at"] == "2026-04-01T00:00:00Z"
+    assert stored_doc["groups"]["sharadar"]["SEP"] == groups["SEP"]
+
+
+def test_load_snapshot_missing_document_raises(tmp_path):
+    from ingest.fetch.storage import Storage
+    storage = Storage(str(tmp_path / "data-root"))
+    conn = connect(":memory:")
+    with pytest.raises(sharadar.SharadarLoadError):
+        sharadar.load_snapshot(conn, storage, "does-not-exist")
+
+
 # ------------------------------------------------------------------- SEP/OHLV
 
 def test_sep_close_is_closeunadj_and_dollar_volume_matches(loaded_conn):
@@ -237,6 +278,40 @@ def test_listed_reader_excludes_delisted_names(reader):
     # event on or before D"; docs/store.md "Open points").
     gone = reader.listed(EQ, sfx.BANKRUPTCY_DATE, sfx.BANKRUPTCY_DATE)
     assert sfx.BANKRUPTCY_PT not in set(gone["symbol"])
+
+
+# --------------------------------------------------------------- exchange_on
+
+def test_exchange_on_reflects_the_move_from_nasdaq_to_nyse(reader):
+    day_before = sfx.WEEKDAYS[sfx.WEEKDAYS.index(sfx.MOVE_DATE) - 1]
+    before = reader.exchange_on(EQ, [sfx.MOVE_PT], day_before, sfx.WEEKDAYS[-1])
+    after = reader.exchange_on(EQ, [sfx.MOVE_PT], sfx.MOVE_DATE, sfx.WEEKDAYS[-1])
+    assert before.iloc[0]["exchange"] == "NASDAQ"
+    assert before.iloc[0]["source"] == "actions"
+    assert after.iloc[0]["exchange"] == "NYSE"
+    assert after.iloc[0]["source"] == "actions"
+
+    # As-of before the move is known, the store hasn't seen the NYSE listing yet.
+    as_of_before_move = day_before
+    still_old = reader.exchange_on(EQ, [sfx.MOVE_PT], sfx.MOVE_DATE, as_of_before_move)
+    assert still_old.iloc[0]["exchange"] == "NASDAQ"
+
+
+def test_exchange_on_falls_back_to_tickers_when_no_actions_event(reader):
+    out = reader.exchange_on(EQ, [sfx.FALLBACK_PT], sfx.FALLBACK_LAST, sfx.WEEKDAYS[-1])
+    assert len(out) == 1
+    assert out.iloc[0]["exchange"] == "NYSE"
+    assert out.iloc[0]["source"] == "tickers_fallback"
+
+
+@pytest.mark.leakage
+def test_exchange_on_never_leaks_a_future_event(reader):
+    day_before = sfx.WEEKDAYS[sfx.WEEKDAYS.index(sfx.MOVE_DATE) - 1]
+    for a in (day_before, sfx.MOVE_DATE, sfx.WEEKDAYS[-1]):
+        out = reader.exchange_on(EQ, [sfx.MOVE_PT], sfx.WEEKDAYS[-1], a)
+        assert (out["available_at"] <= a).all()
+        expected = "NASDAQ" if a < sfx.MOVE_DATE else "NYSE"
+        assert out.iloc[0]["exchange"] == expected
 
 
 # ---------------------------------------------------------------------- ADR/OTC

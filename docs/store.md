@@ -139,6 +139,7 @@ is the end of UTC day D, `DT23:59:59.999Z`. Every returned frame includes
 | `actions(market, symbols, start, end, as_of, kinds=None)` | ACTIONS rows |
 | `listing(market, symbols, start, end, as_of)` | Listing events |
 | `listed(market, date, as_of)` | Symbols listed on `date`: a `listed` event on or before the date and no `delisted` event on or before it (spec/02 Store), using events known as-of |
+| `exchange_on(market, symbols, date, as_of)` | Point-in-time exchange for eligibility (spec/01): the most recent `listing` row's exchange dated on or before `date`, else `symbols.exchange` flagged `source='tickers_fallback'` |
 | `marketcap(market, symbols, start, end, as_of)` | DAILY market cap |
 | `events(market, symbols, start, end, as_of)` | EVENTS rows by filing date |
 | `calendar(calendar_name, start, end, as_of)` | Sessions of `nyse` or `utc` |
@@ -175,8 +176,12 @@ range, it checks two things:
 - each read returns the same frame, adjusted values included, as the same read of a
   copy of the store with every later row deleted.
 
-`symbols` has no date dimension, so only its single read applies. The one
-allowlisted exception is `symbols.sector`, and the allowlist entry cites spec/04.
+`symbols` has no date dimension, so only its single read applies. The
+allowlisted exceptions are `symbols.sector` (spec/04), `symbols.category`
+(spec/01: a current value with no vendor history, like `sector`) and
+`symbols.exchange` only as `exchange_on`'s fallback (spec/01) — the primary,
+point-in-time answer for eligibility's exchange is `exchange_on`, not
+`symbols.exchange` directly.
 
 The fixture, `tests/fixtures/store.py`, is a reusable synthetic store. It contains:
 
@@ -186,13 +191,29 @@ The fixture, `tests/fixtures/store.py`, is a reusable synthetic store. It contai
 - an EVENTS row filed after the close;
 - two crypto pairs with daily and hourly klines, weekends included.
 
+## Resolved points
+
+- **`listed` on the delisting date.** spec/02 said a name is not listed on its
+  delisting date ("no delisting event on or before D"); spec/01 said "after
+  their delisting date". The store always followed spec/02, the stricter of
+  the two, and spec/01 was reworded to match ("excluded on and after their
+  delisting date", penumbra-specs PR 10, "A name is not listed on its
+  delisting date") — no code change, the wording caught up.
+- **Point-in-time exchange.** spec/01 now says eligibility's exchange on D
+  comes from the most recent ACTIONS listing/exchange-change event, TICKERS
+  `exchange` only as the fallback (penumbra-specs PR 10, "Eligibility fields
+  that are not point-in-time"). `AsOfReader.exchange_on` (`docs/ingest-sharadar.md`)
+  implements this from the `listing` table; `symbols.exchange` remains the
+  current TICKERS value and is now allowlisted, like `sector`, rather than an
+  open gap.
+
 ## Open points
 
-- **`listed` on the delisting date.** spec/02 says a name is not listed on its
-  delisting date ("no delisting event on or before D"). spec/01 excludes names
-  "after their delisting date". The store follows spec/02, which is the stricter of
-  the two.
-- **Current TICKERS attributes.** `category`, `exchange` and `ticker` in `symbols`
-  are TICKERS current values, like `sector`. Point-in-time tickers come from the
-  `actions` ticker changes. Point-in-time exchange at delisting is in
-  `listing.exchange`.
+- **`category`.** `symbols.category` is a current TICKERS value with no
+  vendor history, like `sector`; spec/01 now allowlists it explicitly and
+  accepts the risk (a name reclassified out of common stock mid-era reads as
+  never having been common stock) rather than asking for a reconstruction
+  Sharadar's data can't support (penumbra-specs PR 10).
+- **Point-in-time ticker.** `symbols.ticker` is the current ticker; the
+  historical value at any date comes from the `actions` ticker-change rows,
+  not from `symbols`.

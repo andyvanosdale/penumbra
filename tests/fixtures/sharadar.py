@@ -26,6 +26,9 @@ Permatickers:
   (firstpricedate 2015-06-01, lastpricedate 2021-03-18, isdelisted).
 - `200006` FFF. NYSE, `ADR Common Stock` (issue 6 excludes it by category).
 - `200007` GGG. `OTC`, Domestic Common Stock (issue 6 excludes it by exchange).
+- `200010` MOVE. Delisted from NASDAQ and relisted on NYSE on 2021-03-19 under the
+  same ticker and permaticker (two disjoint TICKERS windows), for
+  `AsOfReader.exchange_on`'s point-in-time exchange.
 - Recycled ticker `ZZZ`: `200008` (2018-01-02..2018-01-08, NYSE,
   `voluntarydelisting`) and `200009` (2019-01-02.., NASDAQ, active through the
   main window) share the ticker over disjoint windows.
@@ -76,6 +79,9 @@ FALLBACK_FIRST, FALLBACK_LAST = "2015-06-01", "2021-03-18"
 ADR_PT, ADR_TICKER = "200006", "FFF"
 OTC_PT, OTC_TICKER = "200007", "GGG"
 
+MOVE_PT, MOVE_TICKER = "200010", "MOVE"
+MOVE_LISTED, MOVE_DATE = "2015-01-02", "2021-03-19"
+
 RECYCLED_TICKER = "ZZZ"
 RECYCLED_OLD_PT, RECYCLED_OLD_FIRST, RECYCLED_OLD_LAST = "200008", "2018-01-02", "2018-01-08"
 RECYCLED_NEW_PT, RECYCLED_NEW_FIRST = "200009", "2019-01-02"
@@ -123,6 +129,7 @@ def sep_df() -> pd.DataFrame:
     rows += _sep_rows(FALLBACK_TICKER, _series(fallback_dates, base=15.0, step=0.05))
     rows += _sep_rows(ADR_TICKER, _series(WEEKDAYS, base=30.0, step=0.05))
     rows += _sep_rows(OTC_TICKER, _series(WEEKDAYS, base=3.0, step=0.02))
+    rows += _sep_rows(MOVE_TICKER, _series(WEEKDAYS, base=25.0, step=0.04))
 
     old_dates = [d.strftime("%Y-%m-%d") for d in pd.bdate_range(RECYCLED_OLD_FIRST, RECYCLED_OLD_LAST)]
     rows += _sep_rows(RECYCLED_TICKER, _series(old_dates, base=8.0, step=0.1))
@@ -159,6 +166,10 @@ def tickers_df() -> pd.DataFrame:
             RECYCLED_OLD_FIRST, RECYCLED_OLD_LAST, isdelisted="Y"),
         row(RECYCLED_NEW_PT, RECYCLED_TICKER, "Zenith Two Inc", "NASDAQ", "Domestic Common Stock",
             RECYCLED_NEW_FIRST, WEEKDAYS[-1]),
+        row(MOVE_PT, MOVE_TICKER, "Mobile Robotics Inc", "NASDAQ", "Domestic Common Stock",
+            MOVE_LISTED, WEEKDAYS[WEEKDAYS.index(MOVE_DATE) - 1]),
+        row(MOVE_PT, MOVE_TICKER, "Mobile Robotics Inc", "NYSE", "Domestic Common Stock",
+            MOVE_DATE, WEEKDAYS[-1]),
     ]
     return pd.DataFrame(rows)
 
@@ -185,6 +196,10 @@ def actions_df() -> pd.DataFrame:
         row(RECYCLED_OLD_LAST, "voluntarydelisting", RECYCLED_TICKER),
         row(RECYCLED_NEW_FIRST, "listed", RECYCLED_TICKER),
         # FALLBACK_TICKER has no ACTIONS rows at all: the TICKERS fallback case.
+        row(MOVE_LISTED, "listed", MOVE_TICKER),
+        row(WEEKDAYS[WEEKDAYS.index(MOVE_DATE) - 1], "voluntarydelisting", MOVE_TICKER,
+            contraname="delisted from NASDAQ ahead of the NYSE move"),
+        row(MOVE_DATE, "listed", MOVE_TICKER),
     ]
     return pd.DataFrame(rows)
 
