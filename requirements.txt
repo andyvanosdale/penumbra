@@ -1,0 +1,9 @@
+# Raw-data fetcher (ingest/fetch_data.py). s3fs only when the storage root is s3://.
+pandas>=2.0
+requests>=2.31
+fsspec>=2024.2
+yfinance>=0.2.40
+# s3fs>=2024.2
+
+# Dev
+pytest>=7.0
