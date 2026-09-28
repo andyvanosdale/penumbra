@@ -29,15 +29,16 @@ def _inputs(**overrides) -> CostInputs:
 
 def test_tick_floor_binds_for_a_low_priced_stock():
     """A USD 3 stock: one tick / close = 0.01 / 3 = 0.333%, above the 0.25%
-    floor, so the tick floor binds."""
+    floor, so the tick floor binds on the full (round-trip) estimate; the
+    per-side charge is half of it (PM ruling, penumbra-specs PR #10)."""
 
     model = CostModel("smallcap")
     inputs = _inputs(close_unadj_d=3.0, half_spread_est=0.001)  # 10 bps, below either floor
     leg = model.leg(inputs, "exit_target", order_notional=10_000.0)
-    expected_floor = 0.01 / 3.0
-    assert expected_floor > 0.0025
+    expected_full_floor = 0.01 / 3.0
+    assert expected_full_floor > 0.0025
     assert leg.floor_bound is True
-    assert math.isclose(leg.spread, expected_floor, rel_tol=1e-9)
+    assert math.isclose(leg.spread, expected_full_floor / 2.0, rel_tol=1e-9)
 
 
 def test_percentage_floor_binds_for_a_higher_priced_stock():
@@ -45,7 +46,7 @@ def test_percentage_floor_binds_for_a_higher_priced_stock():
     inputs = _inputs(close_unadj_d=50.0, half_spread_est=0.001)  # tick/close = 0.0002 < 0.25%
     leg = model.leg(inputs, "exit_target", order_notional=10_000.0)
     assert leg.floor_bound is True
-    assert math.isclose(leg.spread, 0.0025, rel_tol=1e-9)
+    assert math.isclose(leg.spread, 0.0025 / 2.0, rel_tol=1e-9)
 
 
 def test_floor_not_bound_when_estimate_exceeds_it():

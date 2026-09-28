@@ -23,17 +23,20 @@ def _inputs(top20: bool) -> CostInputs:
 
 
 def test_top_tier_floor():
+    """The 0.05% tier constant is a full-spread floor (PM ruling, penumbra-specs
+    PR #10); the per-side charge is half of it."""
+
     model = CostModel("crypto")
     leg = model.leg(_inputs(top20=True), "exit_target", 10_000.0)
     assert leg.floor_bound is True
-    assert math.isclose(leg.spread, 0.0005, rel_tol=1e-9)
+    assert math.isclose(leg.spread, 0.0005 / 2.0, rel_tol=1e-9)
 
 
 def test_other_tier_floor():
     model = CostModel("crypto")
     leg = model.leg(_inputs(top20=False), "exit_target", 10_000.0)
     assert leg.floor_bound is True
-    assert math.isclose(leg.spread, 0.0015, rel_tol=1e-9)
+    assert math.isclose(leg.spread, 0.0015 / 2.0, rel_tol=1e-9)
 
 
 def test_taker_fee_per_side_both_legs():

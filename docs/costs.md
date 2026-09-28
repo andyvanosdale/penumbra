@@ -87,23 +87,27 @@ is half of `abdi_ranaldo_spread(...)`, unfloored (the floor is applied in
 
 ## Floors
 
-Equities: `max(0.25%, one tick / close_unadj_d)`, tick = USD 0.01
-(`SPEC06_EQUITY.tick_size_usd`). Crypto: 0.05% when `top20_by_quote_volume`, else
-0.15% (`SPEC06_CRYPTO.spread_floor_top_tier_pct` / `spread_floor_other_pct`).
-`top20_by_quote_volume` ranks every `binance_spot` symbol by trailing 30-day quote
-volume as of D (spec/06; the 30-day window is `SPEC01.
+The locked constants -- `max(0.25%, one tick / close_unadj_d)` for equities (tick =
+USD 0.01, `SPEC06_EQUITY.tick_size_usd`), and 0.05% / 0.15% for crypto
+(`SPEC06_CRYPTO.spread_floor_top_tier_pct` / `spread_floor_other_pct`) -- are
+**full (round-trip) spread floors**, applied to `2 * half_spread_est` before it is
+halved back down to the per-side charge (PM ruling, penumbra-specs PR #10,
+"spec06-floor-before-halving"; spec/06 now says so explicitly). The effective
+per-side floor is therefore half of each constant: 0.125% for equities (not
+0.25%), and 0.025% / 0.075% for the crypto tiers (not 0.05% / 0.15%). The floor
+binds (and halves) before the entry leg's 2x multiplier is applied, same as before
+this change. `top20_by_quote_volume` ranks every `binance_spot` symbol by trailing
+30-day quote volume as of D (spec/06; the 30-day window is `SPEC01.
 crypto_volume_ranking_window_days`, the same window spec/01 uses for the crypto
 universe rank) and is `None` for equity lanes.
 
-**Flagged spec ambiguity (see the PR description for the full reasoning, and the
-docstring at the top of `harness/costs.py`):** spec/06 says "the estimate is
-floored at max(...)" without saying whether "the estimate" is the half-spread (the
-per-side number the table's "Spread (per side)" column is about) or the full
-round-trip AR estimate before it is halved. This module floors the half-spread
-directly -- the more conservative reading (it can only raise modeled costs) and the
-one matching the column's own "per side" framing. The floor is applied before the
-entry leg's 2x multiplier, so the entry leg's minimum charge is `2 * floor`, not
-`floor`.
+**History:** issue #7's original PR (penumbra#33) flagged this as a material
+ambiguity -- spec/06 said "the estimate is floored at max(...)" without saying
+whether "the estimate" was the half-spread or the full round-trip AR value -- and
+implemented the half-spread reading as the conservative default pending a ruling.
+The PM ruled it the other way; `CostModel._full_spread_floor` and `CostModel.leg`
+implement the current (full-estimate) reading, and `CostInputs.half_spread_est`'s
+own meaning (half the AR estimate, unfloored) is unchanged.
 
 ## Stress and the breakeven multiple
 
