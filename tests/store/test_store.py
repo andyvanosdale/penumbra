@@ -91,6 +91,22 @@ def test_writer_refuses_rows_available_before_their_date(conn):
                                                available_at="2021-03-01")])
 
 
+def test_writer_requires_available_at_equal_to_date_for_date_known_tables(conn):
+    """Batched reads (one panel as of the end of a range) are correct only if a row
+    dated t is known on t for these tables (schema.AVAILABLE_ON_DATE)."""
+    with pytest.raises(StoreWriteError, match="must equal"):
+        upsert(conn, "bars_daily", SNAPSHOT, [_bar(date="2021-03-01", available_at="2021-03-02")])
+    with pytest.raises(StoreWriteError, match="must equal"):
+        upsert(conn, "marketcap", SNAPSHOT, [dict(market=EQ, symbol="1", date="2021-03-01",
+                                                  marketcap=1e9, available_at="2021-03-02")])
+    with pytest.raises(StoreWriteError, match="must equal"):
+        upsert(conn, "listing", SNAPSHOT, [dict(market=EQ, symbol="1", event="delisted",
+                                                date="2021-02-24", available_at="2021-03-03")])
+    # EVENTS are the documented exception: known the session after filing.
+    upsert(conn, "events", SNAPSHOT, [dict(market=EQ, symbol="1", filing_date="2021-03-01",
+                                           available_at="2021-03-02")])
+
+
 def test_writer_requires_a_registered_snapshot_and_known_columns(conn):
     with pytest.raises(StoreWriteError, match="not registered"):
         upsert(conn, "bars_daily", "nope", [_bar()])
