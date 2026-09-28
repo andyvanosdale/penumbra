@@ -20,7 +20,7 @@ from harness.labels import (OUTPUT_COLUMNS, UNFILLED_DELISTED, UNFILLED_NO_BAR,
 from harness.store.oracle import HoldoutLockedError, OracleBoundError, OracleReader
 from tests.fixtures import store as fx
 from tests.fixtures.label_store import SNAPSHOT, flat, scenario_store, sessions_between
-from tests.labels._cost_stub import STUB_SLIPPAGE, CostInputs, CostModel
+from harness.costs import CostInputs, CostModel
 
 SYM = "100100"
 SESSIONS = sessions_between("2021-06-01", "2021-08-31")
@@ -38,6 +38,27 @@ def s(k: int) -> str:
     return SESSIONS[F + k]
 
 
+class RecordingCostModel(CostModel):
+    """The real cost model, recording each leg it is asked to charge, so tests can
+    assert which legs the labeler charged and on what notional."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.calls: list[tuple[str, str, float]] = []
+
+    def leg(self, inputs, leg, order_notional):
+        self.calls.append((inputs.symbol, leg, order_notional))
+        return super().leg(inputs, leg, order_notional)
+
+
+def cost_inputs(lane: str, sym: str, d: str) -> CostInputs:
+    """Plausible as-of-D cost inputs: a 0.4% half-spread (above the 0.25% equity
+    floor), 60% vol, USD 5M median dollar volume."""
+    return CostInputs(lane=lane, symbol=sym, signal_date=d, half_spread_est=0.004,
+                      close_unadj_d=100.0, rvol_20_d=0.6, median_dollar_volume=5_000_000.0,
+                      top20_by_quote_volume=(False if lane == "crypto" else None))
+
+
 def after(k: int) -> list[str]:
     """Every session after the k-th session after the fill."""
     return SESSIONS[F + k + 1:]
@@ -45,7 +66,7 @@ def after(k: int) -> list[str]:
 
 def candidates(sym=SYM, dates=(D,), target=TARGET, rng=RANGE, lane="smallcap"):
     return pd.DataFrame([dict(symbol=sym, signal_date=d, target_level=target, stop_range=rng,
-                              cost_inputs=CostInputs(lane, sym, d)) for d in dates])
+                              cost_inputs=cost_inputs(lane, sym, d)) for d in dates])
 
 
 def run(bars=None, *, edits=None, drop=(), listing=(), actions=(), events=(), era_last=None,
@@ -58,7 +79,7 @@ def run(bars=None, *, edits=None, drop=(), listing=(), actions=(), events=(), er
     conn = scenario_store(sessions, {SYM: b}, listing=listing, actions=actions, events=events)
     era_last = era_last or sessions[-1]
     oracle = OracleReader(conn, SNAPSHOT, oracle_last or era_last, HOLDOUT)
-    cm = CostModel("smallcap", stress)
+    cm = RecordingCostModel("smallcap", stress)
     out = label(oracle, candidates() if cands is None else cands, "smallcap", era_last, cm,
                 stress)
     return out, cm
@@ -480,9 +501,20 @@ def test_both_legs_charged_and_net_is_the_decision_quantity():
     assert [c[1] for c in cm.calls] == ["entry", "exit_time"]
     assert cm.calls[0][2] == pytest.approx(r["entry_notional"])
     assert cm.calls[1][2] == pytest.approx(r["exit_notional"])
-    assert r["entry_spread"] == pytest.approx(2 * 0.0025) and r["exit_spread"] == 0.0025
-    assert r["entry_slippage"] == STUB_SLIPPAGE and r["entry_fee"] == 0.0
-    assert bool(r["entry_floor_bound"]) is True
+    # Each leg's components are exactly what the lane's cost model gives for that
+    # leg type and notional (spec/06: 2x spread and 10% participation on entry).
+    inputs = cost_inputs("smallcap", SYM, D)
+    for prefix, leg, notional in (("entry", "entry", r["entry_notional"]),
+                                  ("exit", "exit_time", r["exit_notional"])):
+        want = CostModel("smallcap").leg(inputs, leg, notional)
+        assert r[f"{prefix}_leg"] == leg
+        assert r[f"{prefix}_spread"] == pytest.approx(want.spread)
+        assert r[f"{prefix}_slippage"] == pytest.approx(want.slippage)
+        assert r[f"{prefix}_fee"] == pytest.approx(want.fee)
+        assert bool(r[f"{prefix}_floor_bound"]) is want.floor_bound
+    assert r["entry_spread"] == pytest.approx(2 * 0.004) and r["exit_spread"] == pytest.approx(0.004)
+    assert r["entry_fee"] == 0.0 and not r["entry_floor_bound"]
+    assert r["entry_slippage"] > r["exit_slippage"] > 0
     c_in = r["entry_spread"] + r["entry_slippage"] + r["entry_fee"]
     c_out = r["exit_spread"] + r["exit_slippage"] + r["exit_fee"]
     assert r["net"] == pytest.approx(r["gross"] - c_in - c_out * r["exit_notional"] / r["entry_notional"])
@@ -490,6 +522,14 @@ def test_both_legs_charged_and_net_is_the_decision_quantity():
 
 
 # --- Crypto --------------------------------------------------------------------------
+
+def test_stress_costs_come_from_the_cost_model():
+    stress = next(c for c in STRESS_CASES if c.name == "fixed_10bps_per_leg")
+    base, _ = run()
+    stressed, _ = run(stress=stress)
+    assert stressed.iloc[0]["entry_fee"] == pytest.approx(0.0010)
+    assert stressed.iloc[0]["net"] < base.iloc[0]["net"]
+
 
 def test_crypto_fills_at_the_0100_utc_hourly_open():
     conn = fx.build_store()
