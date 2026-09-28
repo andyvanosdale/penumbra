@@ -41,8 +41,8 @@ The labeler's output meets the features only inside the backtester.
 | `config/eras.py` | Per-lane era bounds | 03 | 17 | owed (still carries the news-project split) |
 | `config/params.py` | Every locked parameter as frozen data: the single input to the configuration hash | 01, 05, 06, 07 | 17 | owed |
 | `config/exclusions/` | Dated crypto base-asset exclusion list | 01 Eligibility | 6 | owed |
-| `harness/store/` | Schema, idempotent writer, as-of reader (single-date and windowed panel), read-time adjustment, lane calendars, bounded oracle reader (`docs/store.md`) | 02 Store, Trading calendars | 16, then 5 | 16 in review; 5 owed |
-| `ingest/sharadar.py` | SEP, TICKERS, ACTIONS, DAILY, EVENTS, SFP (SPY) raw exports → store | 02 | 3 | owed; built against fixtures until a key exists |
+| `harness/store/` | Schema, idempotent writer, as-of reader (single-date and windowed panel), read-time adjustment, lane calendars, bounded oracle reader (`docs/store.md`) | 02 Store, Trading calendars | 16, then 5 | built (16 merged; 5's listing derivation and delisting reason/exchange are `ingest/sharadar.py`, below) |
+| `ingest/sharadar.py` | SEP, TICKERS, ACTIONS, DAILY, EVENTS, SFP (SPY) raw exports → store | 02 | 3, 5 | built against fixtures; no Sharadar key exists, so nothing is verified against a real export (`docs/ingest-sharadar.md`) |
 | `ingest/binance.py` | 1d and 1h klines → store; kline-derived listing; timestamp normalization | 02 | 4 | owed; gated on the screen's crypto result |
 | `harness/universe.py` | Per-lane eligibility and screens → `lane_membership` | 01 | 6 | owed |
 | `harness/features.py` | 14 features and `filing_2d`, as-of | 04 | 8 | owed |
@@ -122,9 +122,11 @@ anything. The run log, which can't be rebuilt, lives under the data root instead
     lane's market and the era window, so the store doesn't depend on
     `config/eras.py`.
   - `hourly(...)`, `symbols(...)`, `actions(...)`, `listing(...)`,
-    `listed(market, date, as_of)`, `marketcap(...)`, `events(...)`,
-    `lane_membership(lane, ...)` and `calendar(calendar_name, start, end, as_of)`.
-    A lane maps to its calendar through `harness.store.calendar_for_lane`.
+    `listed(market, date, as_of)`, `exchange_on(market, symbols, date, as_of)`
+    (spec/01 Eligibility's point-in-time exchange, `docs/ingest-sharadar.md`),
+    `marketcap(...)`, `events(...)`, `lane_membership(lane, ...)` and
+    `calendar(calendar_name, start, end, as_of)`. A lane maps to its calendar
+    through `harness.store.calendar_for_lane`.
   - Every method takes `as_of` and the SQL filters `available_at <= :as_of`. The
     store leakage test (issue 16) asserts this on every table and both paths.
 - `harness.store.oracle.OracleReader(conn, snapshot_id, last_date, holdout_start, unlocked)`:

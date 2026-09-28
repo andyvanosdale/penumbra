@@ -166,10 +166,14 @@ def test_reads_equal_reads_of_a_store_without_the_future(conn, reader, as_of):
                                           obj=f"{table} window as-of {as_of}")
 
 
-def test_sector_is_the_only_allowlisted_non_point_in_time_input(reader):
-    # spec/04 Features: sector is "the one input the store leakage test allowlists".
-    assert set(NON_PIT_ALLOWLIST) == {("symbols", "sector")}
+def test_symbols_non_point_in_time_allowlist(reader):
+    # spec/04 Features: sector. spec/01 Eligibility: category, and exchange only
+    # as exchange_on's fallback.
+    assert set(NON_PIT_ALLOWLIST) == {("symbols", "sector"), ("symbols", "category"),
+                                      ("symbols", "exchange")}
     assert "spec/04" in NON_PIT_ALLOWLIST[("symbols", "sector")]
+    assert "spec/01" in NON_PIT_ALLOWLIST[("symbols", "category")]
+    assert "spec/01" in NON_PIT_ALLOWLIST[("symbols", "exchange")]
     out = reader.symbols(EQ, None, END)
     assert tuple(out.columns) == SYMBOL_ATTRIBUTES, (
         "a new symbols attribute must be reviewed for point-in-time safety")
