@@ -14,9 +14,9 @@ import pandas as pd
 import pytest
 
 from config.params import STRESS_CASES
-from harness.labels import (OUTPUT_COLUMNS, UNFILLED_NO_BAR, UNFILLED_NO_LEVELS,
-                            UNFILLED_NO_SESSION, UNFILLED_ZERO_RANGE, forward_null_counts,
-                            label)
+from harness.labels import (OUTPUT_COLUMNS, UNFILLED_DELISTED, UNFILLED_NO_BAR,
+                            UNFILLED_NO_LEVELS, UNFILLED_NO_SESSION, UNFILLED_ZERO_RANGE,
+                            delisting_counts, forward_null_counts, label)
 from harness.store.oracle import HoldoutLockedError, OracleBoundError, OracleReader
 from tests.fixtures import store as fx
 from tests.fixtures.label_store import SNAPSHOT, flat, scenario_store, sessions_between
@@ -130,6 +130,12 @@ def test_stress_stop_fills_at_the_low(stress):
     assert r["exit_reason"] == "stop" and r["exit_price"] == 96.0
 
 
+@pytest.mark.parametrize("stress", STRESS_CASES, ids=lambda c: c.name)
+def test_stress_gap_through_also_fills_at_the_low(stress):
+    r = one(edits={s(2): (95.0, 95.5, 93.0, 94.0)}, stress=stress)
+    assert r["exit_reason"] == "stop" and r["exit_price"] == 93.0
+
+
 def test_stop_wins_a_tie_with_the_target():
     r = one(edits={s(2): (100.0, 106.0, 96.0, 106.0), s(3): (106.0, 106.5, 105.5, 106.0)})
     assert r["exit_reason"] == "stop" and r["exit_date"] == s(2)
@@ -141,6 +147,29 @@ def test_fill_session_is_never_an_exit_session():
     r = one(edits={FILL: (100.0, 110.0, 90.0, 110.0)})
     assert r["exit_date"] != FILL
     assert r["exit_reason"] == "time" and r["exit_date"] == s(11)
+
+
+def test_fill_on_the_era_last_session_closes_on_the_fill_session():
+    """The one exception to "the fill session is never an exit": the era rule
+    closes a position still open on the era's last session, which here is the
+    fill session itself."""
+    r = one(era_last=FILL, edits={FILL: (100.0, 100.5, 99.5, 100.5)})
+    assert r["status"] == "filled" and r["entry_date"] == FILL
+    assert r["exit_reason"] == "era_end" and r["exit_date"] == FILL
+    assert r["exit_price"] == 100.5 and r["era_truncated"] and r["sessions_held"] == 0
+
+
+def test_pending_target_exit_waits_for_the_next_bar():
+    r = one(edits={s(3): (100.0, 105.5, 99.5, 105.0), s(6): (107.0, 107.5, 106.5, 107.0)},
+            drop=[s(4), s(5)])
+    assert r["exit_reason"] == "target" and r["exit_date"] == s(6)
+    assert r["exit_price"] == 107.0
+
+
+def test_pending_exit_still_closes_after_five_no_bar_sessions():
+    r = one(edits={s(3): (100.0, 105.5, 99.5, 105.0)}, drop=[s(k) for k in range(4, 9)])
+    assert r["exit_reason"] == "no_bar_delist" and r["exit_date"] == s(8)
+    assert r["exit_price"] == 105.0 and "held_at_last_close" in r["flags"]
 
 
 def test_no_bar_sessions_do_not_advance_the_time_stop():
@@ -202,6 +231,86 @@ def test_post_delisting_price_replaces_the_haircut():
     r = one(bars=bars, listing=lst)
     assert r["exit_reason"] == "delist" and r["exit_price"] == 12.0
     assert r["haircut"] is None and "post_delisting_price" in r["flags"]
+
+
+def test_post_delisting_price_outside_ten_sessions_is_not_used():
+    lst = [dict(market="us_equity", symbol=SYM, event="delisted", date=s(3),
+                reason="bankruptcyliquidation", exchange="NASDAQ", source="actions")]
+    bars = {d: v for d, v in flat(SESSIONS).items() if d <= s(3)}
+    bars[s(14)] = (12.0, 12.0, 12.0, 12.0)   # the 11th session after the delisting
+    r = one(bars=bars, listing=lst)
+    assert r["exit_price"] == pytest.approx(0.45 * 100.0) and r["haircut"] == 0.45
+    assert "post_delist_price_unavailable" in r["flags"]
+    assert "post_delisting_price" not in r["flags"]
+    bars[s(13)] = (12.0, 12.0, 12.0, 12.0)   # the 10th: used
+    r = one(bars=bars, listing=lst)
+    assert r["exit_price"] == 12.0 and "post_delisting_price" in r["flags"]
+
+
+def test_delisting_with_no_actions_reason_is_no_record_at_last_close():
+    lst = [dict(market="us_equity", symbol=SYM, event="delisted", date=s(3), reason=None,
+                exchange="NASDAQ", source="tickers")]
+    r = one(edits={s(3): (100.0, 100.5, 99.5, 98.0)}, drop=after(3), listing=lst)
+    assert r["exit_reason"] == "delist" and r["exit_price"] == 98.0
+    assert "delist_no_record" in r["flags"] and r["haircut"] is None
+
+
+def test_delisting_with_an_unnamed_actions_reason_takes_the_haircut_flagged():
+    lst = [dict(market="us_equity", symbol=SYM, event="delisted", date=s(3),
+                reason="spunoff", exchange="NYSE", source="actions")]
+    r = one(drop=after(3), listing=lst)
+    assert r["exit_price"] == pytest.approx(0.70 * 100.0)
+    assert "delist_reason_unknown" in r["flags"]
+
+
+def _friday_signal():
+    """A Friday signal day in SESSIONS, its Saturday, and the Monday fill session."""
+    fri = next(d for d in SESSIONS[D_IDX:] if pd.Timestamp(d).weekday() == 4)
+    sat = (pd.Timestamp(fri) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    mon = SESSIONS[SESSIONS.index(fri) + 1]
+    return fri, sat, mon
+
+
+def test_delisting_between_D_and_the_fill_session_is_unfilled():
+    fri, sat, mon = _friday_signal()
+    lst = [dict(market="us_equity", symbol=SYM, event="delisted", date=sat,
+                reason="bankruptcyliquidation", exchange="NASDAQ", source="actions")]
+    bars = {d: v for d, v in flat(SESSIONS).items() if d <= fri}
+    bars[mon] = (20.0, 20.0, 10.0, 15.0)     # a post-delisting bar
+    out, cm = run(bars=bars, listing=lst, cands=candidates(dates=(fri,)))
+    r = out.iloc[0]
+    assert (r["status"], r["unfilled_reason"]) == ("unfilled", UNFILLED_DELISTED)
+    assert r["entry_date"] is None and cm.calls == []
+
+
+def test_delisting_on_the_fill_session_is_unfilled():
+    lst = [dict(market="us_equity", symbol=SYM, event="delisted", date=FILL,
+                reason="acquisitionby", exchange="NYSE", source="actions")]
+    r = one(drop=after(-1), listing=lst)
+    assert (r["status"], r["unfilled_reason"]) == ("unfilled", UNFILLED_DELISTED)
+
+
+def test_forward_returns_after_a_delisting_use_its_treatment():
+    lst = [dict(market="us_equity", symbol=SYM, event="delisted", date=s(3),
+                reason="bankruptcyliquidation", exchange="NASDAQ", source="actions")]
+    r = one(edits={s(3): (100.0, 100.5, 99.5, 98.0)}, drop=after(3), listing=lst)
+    assert r["fwd_5"] == pytest.approx(0.45 * 98.0 / 100.0 - 1)
+    assert r["fwd_21"] == pytest.approx(0.45 * 98.0 / 100.0 - 1)
+
+
+def test_delisting_counts():
+    lst = [dict(market="us_equity", symbol=SYM, event="delisted", date=s(3),
+                reason="bankruptcyliquidation", exchange="NASDAQ", source="actions")]
+    delisted, _ = run(drop=after(3), listing=lst)
+    held, _ = run(drop=after(2))
+    timed, _ = run()
+    counts = delisting_counts(pd.concat([delisted, held, timed], ignore_index=True))
+    c = {(k, n): v for k, n, v in counts.itertuples(index=False)}
+    assert c[("treatment", "haircut_0.45")] == 1
+    assert c[("treatment", "held_at_last_close")] == 1
+    assert c[("treatment", "last_close")] == 0
+    assert c[("flag", "post_delist_price_unavailable")] == 1
+    assert c[("flag", "delist_no_record")] == 0
 
 
 def test_a_post_delisting_bar_is_never_traded_on():
@@ -298,14 +407,18 @@ def test_validation_candidate_near_era_end_gets_null_long_labels_not_holdout_pri
     # The validation era ends 2023-12-31 (a Sunday); its last session is 12-29.
     out, _ = run(bars=bars, sessions=sessions, cands=cands, era_last="2023-12-31")
     a, b = out.iloc[0], out.iloc[1]
+    cal = [d for d in sessions if d <= "2023-12-29"]
+    fill_a = cal[cal.index("2023-12-01") + 1]
+    # The first position runs its full time stop inside the era.
+    assert a["exit_reason"] == "time"
+    assert a["exit_date"] == cal[cal.index(fill_a) + 11] and a["exit_price"] == 100.0
     assert a["fwd_5"] == pytest.approx(0.0)
     for h in (21, 63, 252):
         assert pd.isna(a[f"fwd_{h}"]), h
     assert all(pd.isna(b[f"fwd_{h}"]) for h in (5, 21, 63, 252))
     # The second position is still open on the era's last session: closed there.
     assert b["exit_reason"] == "era_end" and b["exit_date"] == "2023-12-29"
-    assert b["exit_price"] == 100.0
-    assert out["exit_price"].max() < 1000.0
+    assert b["exit_price"] == 100.0 and b["gross"] == pytest.approx(0.0)
     counts = forward_null_counts(out).set_index("horizon")
     assert counts.loc[5, "null"] == 1 and counts.loc[63, "null"] == 2
     assert counts.loc[252, "null"] == 2 and (counts["filled"] == 2).all()
@@ -313,11 +426,18 @@ def test_validation_candidate_near_era_end_gets_null_long_labels_not_holdout_pri
 
 def test_the_oracle_refuses_the_holdout():
     sessions = sessions_between("2023-09-01", "2024-03-29")
+    conn = scenario_store(sessions, {SYM: flat(sessions)})
     cands = candidates(dates=("2023-12-01",))
+    locked = OracleReader(conn, SNAPSHOT, "2024-03-29", HOLDOUT, unlocked=False)
     with pytest.raises(HoldoutLockedError):
-        run(sessions=sessions, cands=cands, era_last="2024-03-29")
+        label(locked, cands, "smallcap", "2024-03-29", CostModel("smallcap"))
+    bounded = OracleReader(conn, SNAPSHOT, "2023-12-29", HOLDOUT, unlocked=True)
     with pytest.raises(OracleBoundError):
-        run(sessions=sessions, cands=cands, era_last="2024-03-29", oracle_last="2023-12-29")
+        label(bounded, cands, "smallcap", "2024-03-29", CostModel("smallcap"))
+    # With the logged unlock and a bound that covers it, the read goes through.
+    unlocked = OracleReader(conn, SNAPSHOT, "2024-03-29", HOLDOUT, unlocked=True)
+    out = label(unlocked, cands, "smallcap", "2024-03-29", CostModel("smallcap"))
+    assert out.iloc[0]["fwd_63"] == pytest.approx(0.0)
 
 
 def test_forward_returns_from_the_entry_fill():
@@ -382,5 +502,8 @@ def test_crypto_fills_at_the_0100_utc_hourly_open():
     assert a["entry_date"] == "2021-03-07" and a["entry_price"] == pytest.approx(k)
     assert a["shares"] == pytest.approx(math.floor(10_000 / k / 1e-4) * 1e-4)
     assert a["bucket"] == "noise"
+    out = label(oracle, cands.iloc[:1], "crypto", fx.END, CostModel("crypto"),
+                lot_sizes={"BTCUSDT": 0.01})
+    assert out.iloc[0]["shares"] == pytest.approx(math.floor(10_000 / k / 0.01) * 0.01)
     # No 1h kline on 03-11 in the fixture: unfilled, not carried.
     assert b["status"] == "unfilled" and b["unfilled_reason"] == UNFILLED_NO_BAR

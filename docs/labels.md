@@ -33,13 +33,16 @@ labels = label(oracle, candidates, lane, era_last_date, cost_model, stress=None,
 `target_level` and `stop_range` (D's high − low), both in D's
 split-and-dividend-adjusted basis, and `cost_inputs`, the cost model's inputs
 object for that candidate (issue 7's `CostInputs`). The backtester builds these
-from as-of data. Candidate selection and the no-re-entry rule are issue 10's.
+from as-of data. The output carries no `cost_inputs` column. If the backtester
+keeps the object column on its own frames, it flattens or drops it before any
+write. Candidate selection and the no-re-entry rule are issue 10's.
 
 `cost_model` is anything with `leg(inputs, leg_type, order_notional) -> LegCost`
 (`CostModelLike` in `labels.py`). The labeler never imports `harness.costs`; the
 backtester builds the model, with its stress case and multiplier, and passes it
 in. `stress` is a `config.params.StressCase`. The labeler reads only its
-`stop_fills_at_low`.
+`stop_fills_at_low`. `lot_sizes` maps a crypto symbol to its exchange lot;
+`lot_size` (default 1e-8) is the fallback.
 
 `era_last_date` may be a non-session (the validation era ends on a Sunday). The
 boundary the rule uses is the last lane session on or before it.
@@ -53,7 +56,11 @@ boundary the rule uses is the last lane session on or before it.
   - no bar on the fill day: `no_bar_on_fill_day`;
   - D's high equal to its low: `zero_range`;
   - no fill session inside the era: `no_fill_session_in_era`;
-  - NaN levels (an incomplete window): `levels_missing`.
+  - NaN levels (an incomplete window): `levels_missing`;
+  - a delisting dated after D and on or before the fill session:
+    `delisted_before_fill`. A name isn't listed on its delisting date
+    (spec/01, spec/02 listing table), so there is nothing to fill. This covers a
+    delisting on a non-session day between D and the fill.
 - Shares are floor(USD 10,000 / the unadjusted fill price), since sizing uses
   the unadjusted series (spec/02 Store). For crypto, shares are rounded down to
   `lot_size`. `entry_notional` = shares × the unadjusted fill price.
@@ -66,7 +73,10 @@ is never an exit session. On each later session with a bar, it checks in this
 order:
 
 1. **Hard stop.** If the open ≤ the stop, exit at the open. Otherwise, if the
-   low < the stop, exit at the stop, or at the low when `stop_fills_at_low`.
+   low < the stop, exit at the stop. In every stress case (`stop_fills_at_low`)
+   every stop exit fills at the session's low, gap-through included (spec/06:
+   "in every stress case the hard stop fills at the session's low", read as the
+   harsher option).
 2. **Target.** If the close ≥ the target, exit at the next session's open.
 3. **Time stop.** On the 10th session after the fill session that has a bar,
    exit at the next session's open.
@@ -77,14 +87,20 @@ fills at the next session that has a bar. The fifth consecutive session with no
 bar closes the position with the delisting treatment (`no_bar_delist`), dated
 that session.
 
+**The one exception to "the fill session is never an exit session":** when the
+fill session is the era's last session, the era rule closes the position at
+that session's close (`era_end`, `era_truncated`, `sessions_held` 0).
+
 `exit_reason` is one of `stop`, `target`, `time`, `delist`, `no_bar_delist` or
 `era_end`. Each maps to a cost leg: `exit_stop`, `exit_target`, `exit_time`,
 `exit_delist` (used by both delisting reasons) and `exit_era_end`.
 
 ## Delisting (spec/01)
 
-The labeler reads `delisted` events through `OracleReader.listing`. The position
-closes on the first session on or after the delisting date. That session's stop
+The labeler reads `delisted` events through `OracleReader.listing`, from the
+calendar day after D. A delisting on or before the fill session leaves the
+candidate unfilled (see "Entry"). An open position closes on the first session
+on or after the delisting date. That session's stop
 is checked first when it has a bar, and a pending next-open exit fills first.
 
 | Case | Exit price |
@@ -92,20 +108,23 @@ is checked first when it has a bar, and a pending next-open exit fills first.
 | `acquisitionby`, `mergerto`, `voluntarydelisting` | the last close |
 | `bankruptcyliquidation`, `regulatorydelisting` | 0.45 × the last close on NASDAQ; 0.70 × on NYSE or NYSE American (`NYSEMKT`) |
 | any of the above, crypto | the last close |
-| a post-delisting price in the store | replaces the haircut (flag `post_delisting_price`) |
-| bars stop with no delisting record | held at the last close (flag `held_at_last_close`) |
+| a post-delisting price in the store, within 10 lane sessions after the delisting date and inside the era | replaces the haircut (flag `post_delisting_price`); without one, the haircut applies (flag `post_delist_price_unavailable`) |
+| a delisting event with no ACTIONS reason (TICKERS last-price-date fallback) | "no delisting record": the last close (flag `delist_no_record`) |
+| bars stop with no delisting event | held at the last close (flag `held_at_last_close`) |
 
 - The last close is the close of the last bar on or before the delisting date.
 - The exchange is the listing row's `exchange`, the exchange at delisting.
 - A "post-delisting price" is the close of the first bar dated after the
-  delisting date. The store has no dedicated column for it yet (see "Open
-  points").
+  delisting date and at most 10 lane sessions after it, inside the era. The
+  store has no dedicated column for it yet (see "Open points").
 - Conservative readings, flagged on the row:
   - a haircut-class delisting on an exchange the spec doesn't name (NYSEARCA,
     BATS, missing) takes the harsher haircut, 0.45, and is flagged
     `haircut_exchange_unmapped`;
-  - a delisting whose reason is none of the five spec/01 names takes the
-    haircut treatment and is flagged `delist_reason_unknown`.
+  - an ACTIONS delisting reason that is none of the five spec/01 names takes the
+    haircut treatment and is flagged `delist_reason_unknown` (pending the PM).
+- `delisting_counts(labels)` gives the count of each treatment and each
+  delisting flag among filled exits, for the report.
 - A position whose bars stop takes the recorded treatment when the delisting is
   recorded later in the era. Otherwise it is held at its last close and closed
   on the fifth no-bar session.
@@ -220,11 +239,10 @@ is checked first when it has a bar, and a pending next-open exit fills first.
 - **The post-delisting price has no store column.** The labeler reads the first
   bar after the delisting date as that price. Issue 5 (listing and adjustment)
   should say where the loader puts it.
-- **Unmapped exchange or reason.** These take the harsher treatment and are
-  flagged (see "Delisting"). spec/01 names neither case.
+- **An unnamed ACTIONS delisting reason** takes the haircut, flagged, pending
+  the PM. An unmapped exchange takes 0.45, flagged (PA ruling, PR 30).
 - **A pending next-open exit on a no-bar session** waits for the next session
-  with a bar, with the five-session rule still running. spec/05 says "the open
-  of the next session" and doesn't cover a halt on that session.
+  with a bar, with the five-session rule still running (PA ruling, PR 30).
 - **Performance.** Each filled candidate makes a few small oracle reads. That is
   enough for a dev run. Batching per symbol is possible if profiling shows the
   need.

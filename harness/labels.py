@@ -32,10 +32,11 @@ model's own inputs object in `cost_inputs`.
 
 from __future__ import annotations
 
+import bisect
 import datetime as dt
 import math
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Mapping, Protocol
 
 import numpy as np
 import pandas as pd
@@ -98,6 +99,9 @@ UNFILLED_ZERO_RANGE = "zero_range"
 UNFILLED_NO_BAR = "no_bar_on_fill_day"
 UNFILLED_NO_SESSION = "no_fill_session_in_era"
 UNFILLED_NO_LEVELS = "levels_missing"
+# spec/01, spec/02 listing table: a name is not listed on its delisting date, so a
+# delisting dated after D and on or before the fill session leaves nothing to fill.
+UNFILLED_DELISTED = "delisted_before_fill"
 
 # Flags.
 FLAG_ERA_TRUNCATED = "era_truncated"
@@ -107,7 +111,12 @@ FLAG_EXCHANGE_UNMAPPED = "haircut_exchange_unmapped"
 FLAG_REASON_UNKNOWN = "delist_reason_unknown"
 FLAG_NO_BAR_AT_ERA_END = "no_bar_at_era_end"
 FLAG_BUCKET_TRUNCATED = "bucket_window_truncated"
-FLAG_DELIST_ON_FILL = "delisted_by_fill_session"
+FLAG_NO_RECORD = "delist_no_record"
+FLAG_POST_DELIST_UNAVAILABLE = "post_delist_price_unavailable"
+
+# A post-delisting price is usable only within this many lane sessions after the
+# delisting date (and inside the era); otherwise the haircut applies (PA review, PR 30).
+POST_DELIST_WINDOW_SESSIONS = 10
 
 OUTPUT_COLUMNS = (
     "symbol", "signal_date", "status", "unfilled_reason",
@@ -172,13 +181,12 @@ class _Exit:
     haircut: float | None = None
 
 
-def _delist_value(series: _Series, delist: dict | None, lane: str, until: str
-                  ) -> tuple[float, str, list[str], float | None]:
+def _delist_value(series: _Series, delist: dict | None, lane: str, until: str,
+                  sessions: list[str]) -> tuple[float, str, list[str], float | None]:
     """spec/01 delisting treatment. Returns (price in basis D, price bar, flags, haircut).
 
     `until` is the last date whose bar may serve as the last close.
     """
-    flags: list[str] = []
     ref_date = delist["date"] if delist is not None else until
     last = series.last_on_or_before(min(ref_date, until))
     last_close = float(series.adj.at[last, "close"])
@@ -186,19 +194,30 @@ def _delist_value(series: _Series, delist: dict | None, lane: str, until: str
         # Bars stopped with no delisting record: held at the last close, flagged.
         return last_close, last, [FLAG_HELD_AT_LAST_CLOSE], None
     if lane == "crypto":
-        return last_close, last, flags, None
+        return last_close, last, [], None
     reason = delist.get("reason")
+    if not isinstance(reason, str) or not reason:
+        # A delisting event with no ACTIONS reason (the TICKERS last-price-date
+        # fallback) is "no delisting record" in spec/01: the last close, flagged.
+        return last_close, last, [FLAG_NO_RECORD], None
     if reason in LAST_CLOSE_REASONS:
-        return last_close, last, flags, None
+        return last_close, last, [], None
+    flags: list[str] = []
     if reason not in HAIRCUT_REASONS:
-        # A delisting whose reason is not one spec/01 names: the conservative
-        # (haircut) treatment, flagged for the report.
+        # An ACTIONS reason spec/01 doesn't name: the conservative (haircut)
+        # treatment, flagged for the report (pending the PM).
         flags.append(FLAG_REASON_UNKNOWN)
     # A post-delisting price in the store replaces the haircut: the first bar
-    # dated after the delisting date.
-    after = series.adj.index[series.adj.index > delist["date"]]
-    if len(after):
-        return float(series.adj.at[after[0], "close"]), after[0], flags + [FLAG_POST_DELIST_PRICE], None
+    # dated after the delisting date, within POST_DELIST_WINDOW_SESSIONS lane
+    # sessions of it and inside the era (`sessions` ends at the era's last session).
+    k = bisect.bisect_right(sessions, delist["date"])
+    if k < len(sessions):
+        bound = sessions[min(k + POST_DELIST_WINDOW_SESSIONS - 1, len(sessions) - 1)]
+        after = series.adj.index[(series.adj.index > delist["date"]) & (series.adj.index <= bound)]
+        if len(after):
+            return (float(series.adj.at[after[0], "close"]), after[0],
+                    flags + [FLAG_POST_DELIST_PRICE], None)
+    flags.append(FLAG_POST_DELIST_UNAVAILABLE)
     exchange = (delist.get("exchange") or "").upper()
     haircut = HAIRCUT_BY_EXCHANGE.get(exchange)
     if haircut is None:
@@ -218,17 +237,10 @@ def _simulate(series: _Series, sessions: list[str], fill_idx: int, target: float
     fill_date = sessions[fill_idx]
 
     def delist_exit(on: str, reason: str) -> _Exit:
-        price, pdate, flags, haircut = _delist_value(series, delist, lane, on)
+        price, pdate, flags, haircut = _delist_value(series, delist, lane, on, sessions)
         return _Exit(on, price, reason, pdate, flags,
                      delist.get("reason") if delist else None,
                      delist.get("exchange") if delist else None, haircut)
-
-    if delist is not None and delist["date"] <= fill_date:
-        # Delisted by the fill session: closed on the first session after it.
-        nxt = sessions[fill_idx + 1] if fill_idx + 1 < len(sessions) else fill_date
-        ex = delist_exit(nxt, "delist")
-        ex.flags.append(FLAG_DELIST_ON_FILL)
-        return ex, 0
 
     for t in sessions[fill_idx + 1:]:
         if delist is not None and t > delist["date"]:
@@ -243,10 +255,11 @@ def _simulate(series: _Series, sessions: list[str], fill_idx: int, target: float
             if pending is not None:
                 return _Exit(t, o, pending, t), bar_sessions
             bar_sessions += 1
-            # 1. Hard stop: gap-through fills at the open; otherwise at the level,
-            #    or at the low in a stress case (spec/06 Cost stress).
+            # 1. Hard stop: gap-through fills at the open; otherwise at the level.
+            #    In every stress case every stop fill is at the session's low,
+            #    gap-through included (spec/06 Cost stress; PA ruling, PR 30).
             if o <= stop:
-                return _Exit(t, o, "stop", t), bar_sessions
+                return _Exit(t, lo if stop_at_low else o, "stop", t), bar_sessions
             if lo < stop:
                 return _Exit(t, lo if stop_at_low else stop, "stop", t), bar_sessions
             if delist is not None and t >= delist["date"]:
@@ -290,7 +303,7 @@ def _forward(series: _Series, sessions: list[str], fill_idx: int, entry: float,
             continue
         s = sessions[i]
         if delist is not None and delist["date"] <= s:
-            price = _delist_value(series, delist, lane, s)[0]
+            price = _delist_value(series, delist, lane, s, sessions)[0]
         else:
             price = float(series.adj.at[series.last_on_or_before(s), "close"])
         out[f"fwd_{h}"] = price / entry - 1.0
@@ -310,15 +323,16 @@ def _leg_total(row: dict, prefix: str) -> float:
 
 
 def label(oracle: OracleReader, candidates: pd.DataFrame, lane: str, era_last_date,
-          cost_model: CostModelLike, stress=None, *, lot_size: float = DEFAULT_CRYPTO_LOT
-          ) -> pd.DataFrame:
+          cost_model: CostModelLike, stress=None, *, lot_size: float = DEFAULT_CRYPTO_LOT,
+          lot_sizes: Mapping[str, float] | None = None) -> pd.DataFrame:
     """Label every candidate: one row per candidate, OUTPUT_COLUMNS.
 
     `candidates` has REQUIRED_COLUMNS: `target_level` and `stop_range` in D's
     split-and-dividend-adjusted basis (from `harness.levels.entry_levels`), and
     `cost_inputs`, the cost model's inputs object for the candidate. `stress` is a
     `config.params.StressCase` or None; only its `stop_fills_at_low` is read here
-    (the cost model applies its multipliers). Every read is bounded by
+    (the cost model applies its multipliers). Crypto shares round down to the
+    symbol's lot in `lot_sizes`, else `lot_size`. Every read is bounded by
     `era_last_date` and by the oracle's own bounds and holdout lock.
     """
     missing = [c for c in REQUIRED_COLUMNS if c not in candidates.columns]
@@ -346,7 +360,8 @@ def label(oracle: OracleReader, candidates: pd.DataFrame, lane: str, era_last_da
     rows = []
     for cand, D in zip(candidates.to_dict("records"), signal_dates):
         rows.append(_label_one(oracle, cand, D, lane, market, sessions, pos, era_last,
-                               cost_model, stop_at_low, lot_size))
+                               cost_model, stop_at_low,
+                               (lot_sizes or {}).get(str(cand["symbol"]), lot_size)))
     return pd.DataFrame(rows, columns=list(OUTPUT_COLUMNS))
 
 
@@ -402,7 +417,17 @@ def _label_one(oracle: OracleReader, cand: dict, D: str, lane: str, market: str,
     if fill_date is None or fill_date > era_last or fill_date not in pos:
         return unfilled(UNFILLED_NO_SESSION)
     fill_idx = pos[fill_date]
-    read_end = sessions[min(fill_idx + max(HORIZONS), len(sessions) - 1)]
+    # Far enough for the longest horizon plus a post-delisting price window.
+    read_end = sessions[min(fill_idx + max(HORIZONS) + POST_DELIST_WINDOW_SESSIONS,
+                            len(sessions) - 1)]
+    # Delisting events from the calendar day after D: one dated after D and on or
+    # before the fill session means the name is not listed when the order would fill.
+    day_after = (dt.date.fromisoformat(D) + dt.timedelta(days=1)).isoformat()
+    lst = oracle.listing(market, [sym], day_after, read_end)
+    dl = lst[lst["event"] == "delisted"]
+    delist = dl.iloc[0].to_dict() if not dl.empty else None
+    if delist is not None and delist["date"] <= fill_date:
+        return unfilled(UNFILLED_DELISTED)
     series = _Series(
         oracle.bars(market, [sym], fill_date, read_end, adjust="split_div", basis=D),
         oracle.bars(market, [sym], fill_date, read_end, adjust="split", basis=D),
@@ -431,9 +456,6 @@ def _label_one(oracle: OracleReader, cand: dict, D: str, lane: str, market: str,
     row.update(_leg(cost_model, cand["cost_inputs"], "entry", entry_notional, "entry"))
 
     # --- Exit (spec/05 step 6; spec/01; spec/03) ----------------------------------
-    lst = oracle.listing(market, [sym], fill_date, read_end)
-    dl = lst[lst["event"] == "delisted"]
-    delist = dl.iloc[0].to_dict() if not dl.empty else None
     ex, held = _simulate(series, sessions, fill_idx, target, stop, delist, lane, era_last,
                          stop_at_low)
     flags += ex.flags
@@ -472,3 +494,37 @@ def forward_null_counts(labels: pd.DataFrame) -> pd.DataFrame:
         rows.append({"horizon": h, "filled": len(filled), "null": int(col.isna().sum()),
                      "non_null": int(col.notna().sum())})
     return pd.DataFrame(rows, columns=["horizon", "filled", "null", "non_null"])
+
+
+DELISTING_FLAGS = (FLAG_HELD_AT_LAST_CLOSE, FLAG_NO_RECORD, FLAG_REASON_UNKNOWN,
+                   FLAG_POST_DELIST_PRICE, FLAG_POST_DELIST_UNAVAILABLE, FLAG_EXCHANGE_UNMAPPED)
+
+
+def delisting_counts(labels: pd.DataFrame) -> pd.DataFrame:
+    """Counts of the delisting treatments applied to filled candidates' exits, for
+    the report (spec/01): one row per treatment and per delisting flag.
+
+    Treatments: `last_close` (a named last-close reason, or crypto),
+    `haircut_0.45` and `haircut_0.70`, `post_delisting_price`, `no_record`
+    (a delisting event with no ACTIONS reason) and `held_at_last_close` (bars
+    stopped with no delisting event). Flags count exits carrying each flag.
+    """
+    filled = labels[(labels["status"] == "filled")
+                    & labels["exit_reason"].isin(["delist", "no_bar_delist"])]
+    flags = filled["flags"].fillna("").str.split("|")
+
+    def has(flag: str) -> pd.Series:
+        return flags.apply(lambda fs: flag in fs)
+
+    haircut = pd.to_numeric(filled["haircut"], errors="coerce")
+    rows = [
+        ("treatment", "haircut_0.45", int((haircut == HAIRCUT_NASDAQ).sum())),
+        ("treatment", "haircut_0.70", int((haircut == HAIRCUT_NYSE).sum())),
+        ("treatment", "post_delisting_price", int(has(FLAG_POST_DELIST_PRICE).sum())),
+        ("treatment", "no_record", int(has(FLAG_NO_RECORD).sum())),
+        ("treatment", "held_at_last_close", int(has(FLAG_HELD_AT_LAST_CLOSE).sum())),
+    ]
+    other = len(filled) - sum(r[2] for r in rows)
+    rows.insert(0, ("treatment", "last_close", int(other)))
+    rows += [("flag", f, int(has(f).sum())) for f in DELISTING_FLAGS]
+    return pd.DataFrame(rows, columns=["kind", "name", "count"])
