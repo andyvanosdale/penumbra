@@ -9,9 +9,9 @@ import inspect
 
 import pandas as pd
 
-import harness.features as features
-from harness.features import build_features
-from harness.store import PITStore
+import legacy.features as features
+from legacy.features import build_features
+from legacy.store import PITStore
 
 
 def _feature_source_tree():

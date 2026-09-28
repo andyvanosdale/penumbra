@@ -20,7 +20,7 @@ from typing import Optional
 
 import pandas as pd
 
-from harness.store import PITStore
+from legacy.store import PITStore
 
 # Feature schema is explicit so the model wrapper and tests agree on column order.
 FEATURE_NAMES = ["is_monday"]

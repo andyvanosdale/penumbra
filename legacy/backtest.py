@@ -26,10 +26,10 @@ from typing import Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from harness.features import build_features, features_to_vector, FEATURE_NAMES
-from harness.labels import Labeler
-from harness.model import LogisticRegressionModel
-from harness.store import PITStore
+from legacy.features import build_features, features_to_vector, FEATURE_NAMES
+from legacy.labels import Labeler
+from legacy.model import LogisticRegressionModel
+from legacy.store import PITStore
 
 
 @dataclass
