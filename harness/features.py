@@ -20,7 +20,15 @@ Conventions (spec/04):
   last date — gives the same feature values as reading each D as of D; only bars
   dated on or before each D are ever used for that D's features, so no feature ever
   reads a row with `available_at` after D. `tests/features/test_scale_invariance.py`
-  is the required proof.
+  is the required proof. This batched read is correct only because of the store's
+  availability invariant (`docs/store.md`, "Availability invariant";
+  `harness.store.schema.AVAILABLE_ON_DATE`): `bars_daily`, `calendar`, `actions`,
+  `listing`, `marketcap` and `lane_membership` all have `available_at` equal to
+  their own date, so a row dated t <= D is known by D regardless of what later
+  dates share the same panel read. `events` is the documented exception — its
+  `available_at` (the next session after filing) can fall after its own filing
+  date — so `filing_2d` re-filters the windowed events read to `available_at <= D`
+  per D before using it, rather than relying on the panel-style date bound.
 - Annualization is sqrt(252) for equity lanes (`nyse` calendar) and sqrt(365) for
   crypto (`utc` calendar).
 - "Today's return" (used by `sector_rel_ret_1` and `ret_per_vol`) is the simple

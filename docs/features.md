@@ -37,10 +37,16 @@ it never imports `harness.store.oracle` or `harness.labels`
   `tests/features/test_scale_invariance.py` is the proof: it multiplies every
   price (and its dollar volume) by an arbitrary constant and asserts every
   feature is unchanged. In-memory, only bars dated on or before each D are ever
-  used to compute that D's features (matching an as-of-D bars read exactly,
-  since a daily bar's `available_at` equals its date), and events are re-filtered
-  to `available_at <= D` from the single windowed events read before use, so no
-  feature ever reads a row with `available_at` after D
+  used to compute that D's features. This matches an as-of-D bars read exactly
+  because of the store's **availability invariant** (`docs/store.md`,
+  "Availability invariant"; `harness.store.schema.AVAILABLE_ON_DATE`): the
+  writer refuses any `bars_daily`, `calendar`, `actions`, `listing`,
+  `marketcap` or `lane_membership` row whose `available_at` differs from its
+  own date, so a row dated t <= D is always known by D regardless of what
+  later dates share the batched panel/calendar read. `events` is the
+  documented exception (`available_at` is the *next* session after filing),
+  so it is re-filtered to `available_at <= D` from the single windowed events
+  read before use — no feature ever reads a row with `available_at` after D
   (`tests/features/test_asof_future_rows.py`,
   `tests/features/test_feature_invariance.py`).
 - **Annualization**: sqrt(252) for the `nyse` calendar, sqrt(365) for `utc`
