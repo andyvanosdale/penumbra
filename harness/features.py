@@ -45,6 +45,7 @@ from typing import Mapping, Sequence
 import numpy as np
 import pandas as pd
 
+from config.params import SPEC01
 from harness.store.calendar import calendar_for_lane
 from harness.store.reader import AsOfReader, iso_date
 
@@ -54,8 +55,12 @@ EQUITY_LANES = ("smallcap", "discovered")
 
 RVOL_WINDOW = 20
 ZSCORE_WINDOW = 20
-VOL_PCTL_WINDOW = 250
-DIST_52W_WINDOW = 250
+# spec/01 Eligibility fixes an equity's full-history requirement at 250 lane
+# trading days "so every feature window is full" — the same 250 spec/04 uses
+# for vol_pctl_250 and dist_52w_low. Sourced from config/params.py (the
+# locked-parameter source of truth) rather than a second literal.
+VOL_PCTL_WINDOW = SPEC01.equities_full_history_days
+DIST_52W_WINDOW = SPEC01.equities_full_history_days
 DD_20D_WINDOW = 20
 RANGE_REL_WINDOW = 20
 CLOSE_LOC_LAG = 2

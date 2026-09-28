@@ -1,17 +1,11 @@
-"""As-of correctness and feature invariance (spec/02 Leakage tests; issue 8 Acceptance).
+"""The as-of read (spec/02 Leakage tests, first bullet; issue 8 Acceptance):
+no feature reads a row with `available_at` after D.
 
-Two things are checked together, on one fixture with data dated after D:
-
-- **As-of read**: no feature reads a row with `available_at` after D. Proven by
-  building the store with future bars and a future EVENTS row alongside the
-  historical ones, and showing `build_features` at D is unchanged from a store
-  that never had the future rows at all.
-- **Feature invariance** (spec/02 Leakage tests, second bullet). Issue 18's
-  `harness/testing/invariance.py` (`assert_feature_invariance`) is still in
-  review (PR #27, not yet merged as of this branch); per the issue 8 brief this
-  is the minimal version written directly in the test — delete every bar and
-  event after D and assert every value at D is identical — and is flagged in the
-  PR description for the PA to switch to the real helper once it lands.
+Proven directly with a store fixture holding future bars and a future EVENTS
+row alongside the historical data: `build_features` at D must be unchanged
+from a store that never had the future rows at all. See
+`test_feature_invariance.py` for the general-purpose invariance check
+(`harness.testing.assert_feature_invariance`, issue 18).
 """
 
 from __future__ import annotations

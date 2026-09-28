@@ -41,7 +41,8 @@ it never imports `harness.store.oracle` or `harness.labels`
   since a daily bar's `available_at` equals its date), and events are re-filtered
   to `available_at <= D` from the single windowed events read before use, so no
   feature ever reads a row with `available_at` after D
-  (`tests/features/test_leakage.py`).
+  (`tests/features/test_asof_future_rows.py`,
+  `tests/features/test_feature_invariance.py`).
 - **Annualization**: sqrt(252) for the `nyse` calendar, sqrt(365) for `utc`
   (`harness.features.ANNUALIZATION`).
 - **Two kinds of "return".** The Conventions section defines both: "today's
@@ -114,6 +115,18 @@ history in the store is not an error: `vol_pctl_250` and `dist_52w_low` are
 simply `NaN` at every D where the window isn't full, consistent with the
 missing-bar rule above.
 
+`VOL_PCTL_WINDOW` and `DIST_52W_WINDOW` are both `config.params.SPEC01.equities_full_history_days`
+(250) rather than a second `250` literal: it is the same number spec/01 fixes
+as the equity full-history requirement, chosen precisely so that an eligible
+equity's feature windows are always full (spec/01 Eligibility, "so every
+feature window is full"). `config/params.py` has no locked constant for the
+20-day feature windows or for the sqrt(252)/sqrt(365) annualization — those
+20s in spec/01/06/07 govern unrelated things (the liquidity/vol floors, the
+cost spread window, the regime-split window), not this table — so
+`RVOL_WINDOW`, `ZSCORE_WINDOW`, `DD_20D_WINDOW`, `RANGE_REL_WINDOW` and
+`ANNUALIZATION` stay as `harness/features.py`'s own constants, read directly
+off spec/04's table.
+
 ## Testing
 
 `tests/features/`:
@@ -132,15 +145,18 @@ missing-bar rule above.
 - `test_scale_invariance.py`: multiplies every price and its dollar volume by a
   constant and asserts every feature at D is unchanged (`docs/architecture.md`
   "Adjustment", consequence 1).
-- `test_leakage.py` (marked `leakage`): builds one store with future bars and a
-  future EVENTS row alongside the historical data, and one without them, and
-  asserts `build_features` at D is identical between the two. This is both the
-  as-of read check (no feature reads a row with `available_at` after D) and a
-  minimal, self-contained feature-invariance test. **Issue 18's
-  `harness/testing/invariance.py` (`assert_feature_invariance`) was still in
-  review (PR #27) when this was written**; once it merges, the PA should switch
-  this test to call it directly against `build_features` over a synthetic store,
-  under `@pytest.mark.leakage`, per the issue 8 brief.
+- `test_asof_future_rows.py` (marked `leakage`): builds one store with future
+  bars and a future EVENTS row alongside the historical data, and one without
+  them, and asserts `build_features` at D is identical between the two — the
+  as-of read check (spec/02 Leakage tests, first bullet): no feature reads a
+  row with `available_at` after D.
+- `test_feature_invariance.py` (marked `leakage`): calls issue 18's
+  `harness.testing.assert_feature_invariance` directly against
+  `build_features`, over a synthetic store built per-sample from
+  `tests/invariance/_synth.py`'s panel generator (the same generator issue
+  18's own reference-feature tests use). Every value `build_features` gives at
+  D must be unchanged when the data dated after D is deleted, scaled,
+  shock-scaled or shuffled (spec/02 Leakage tests, second bullet).
 - `test_crypto_lane.py`: the same `ret_1`/`rvol_20_prev` check on the `crypto`
   lane, to exercise the `utc` calendar (every day is a session) and the
   sqrt(365) annualization independently of the equity-lane tests.
