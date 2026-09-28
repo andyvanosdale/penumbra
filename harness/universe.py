@@ -38,6 +38,7 @@ from typing import Mapping, Protocol, Sequence
 import numpy as np
 import pandas as pd
 
+from config.params import SPEC01
 from harness.store.calendar import calendar_for_lane
 from harness.store.reader import AsOfReader, iso_date
 from harness.store.writer import upsert
@@ -45,7 +46,9 @@ from harness.store.writer import upsert
 EQUITY_MARKET = "us_equity"
 EQUITY_LANES = ("smallcap", "discovered")
 
-# spec/01 Eligibility.
+# spec/01 Eligibility. `category` is a TICKERS current value, allowlisted like
+# `sector` (spec/04; PM ruling on issue 6's Q4) — read as-is, no point-in-time
+# reconstruction. `exchange` is point-in-time; see `_exchange_on` below.
 ELIGIBLE_CATEGORIES = (
     "Domestic Common Stock",
     "Domestic Common Stock Primary Class",
@@ -53,19 +56,19 @@ ELIGIBLE_CATEGORIES = (
 )
 ELIGIBLE_EXCHANGES = ("NYSE", "NASDAQ", "NYSEMKT", "NYSEARCA", "BATS")
 
-# spec/01 Eligibility / Point-in-time construction.
-HISTORY_SESSIONS = 250   # full bar history required, lane trading days ending at D
-LIQUIDITY_WINDOW = 20    # lane trading days ending D-1, for the dollar-volume median
-VOL_WINDOW = 20          # lane trading days ending D, for realized vol
+# spec/01 Parameters, from config/params.py (issue 17, PR 24) — the single
+# input to the run's configuration hash (spec/03 Run record). Decimal ->
+# float: every value here feeds arithmetic against float bars and market caps.
+HISTORY_SESSIONS = SPEC01.equities_full_history_days   # 250 lane trading days ending at D
+LIQUIDITY_WINDOW = SPEC01.liquidity_floor_window_days  # 20 lane trading days ending D-1
+VOL_WINDOW = SPEC01.vol_floor_window_days              # 20 lane trading days ending D
+SMALLCAP_CEILING = float(SPEC01.small_cap_ceiling_usd)         # USD market cap, DAILY dated D
+LIQUIDITY_FLOOR = float(SPEC01.liquidity_floor_equities_usd)   # USD median dollar volume
+VOL_FLOOR = float(SPEC01.vol_floor_equities)                   # 20-day annualized realized vol
+PRICE_FLOOR = float(SPEC01.price_floor_equities_usd)           # unadjusted close on D
+# spec/02 Trading calendars: "Annualization uses sqrt(252) for equities" — a
+# calendar convention, not one of config/params.py's locked parameters.
 EQUITY_ANNUALIZATION = 252 ** 0.5
-
-# TODO(PA): replace with config.params once PR 24 merges (issue 17). Values below
-# are spec/01 Parameters: Small-cap ceiling, Liquidity floor (equities), Vol floor
-# (equities), Price floor (equities).
-SMALLCAP_CEILING = 2_000_000_000.0   # USD market cap, DAILY dated D
-LIQUIDITY_FLOOR = 500_000.0          # USD median daily dollar volume, 20 sessions ending D-1
-VOL_FLOOR = 0.40                     # 20-day annualized realized vol
-PRICE_FLOOR = 2.00                   # unadjusted close on D
 
 # A read this early returns nothing before the store's actual history; it exists
 # so listing events and calendar sessions from long before the requested window
@@ -142,6 +145,44 @@ def _window_sessions(sessions: list[str], dates: list[str]) -> list[str]:
     return sessions[start_i:end_i + 1]
 
 
+def _exchange_on(reader: AsOfReader, market: str, symbols: Sequence[str], date: str,
+                 as_of: str) -> pd.DataFrame:
+    """Point-in-time exchange on `date` (spec/01 Eligibility; PM ruling on issue
+    6's Q4, penumbra-specs PR 10): the most recent ACTIONS listing or
+    exchange-change event on or before `date`, falling back to the TICKERS
+    current `exchange`. Returns `symbol`, `exchange`, `source`.
+
+    # TODO(PA): switch to reader.exchange_on(market, symbols, date, as_of) once
+    # ingest/sharadar (issues 3+5, branch ingest/sharadar) merges it into
+    # harness.store.reader. This is a local stand-in with that exact call
+    # signature and return shape; until it lands, this always returns the
+    # current TICKERS exchange (`source="tickers"`), regardless of `date`,
+    # which is today's behavior and not point-in-time.
+    """
+    if hasattr(reader, "exchange_on"):
+        return reader.exchange_on(market, symbols, date, as_of)
+    attrs = reader.symbols(market, symbols, as_of)
+    out = (attrs[["symbol", "exchange"]].copy() if not attrs.empty
+          else pd.DataFrame(columns=["symbol", "exchange"]))
+    out["source"] = "tickers"
+    return out
+
+
+def _exchange_frame(reader: AsOfReader, market: str, symbols: Sequence[str],
+                    dates: list[str], as_of: str) -> pd.DataFrame:
+    """Per (symbol, date) exchange: one `_exchange_on` call per requested date,
+    since its signature (and the real `exchange_on` it stands in for) takes a
+    single date, not a window."""
+    frames = []
+    for d in dates:
+        ex = _exchange_on(reader, market, symbols, d, as_of)
+        if not ex.empty:
+            frames.append(ex[["symbol", "exchange"]].assign(date=d))
+    if not frames:
+        return pd.DataFrame(columns=["symbol", "date", "exchange"])
+    return pd.concat(frames, ignore_index=True)
+
+
 def _equity_screen_frame(reader: AsOfReader, dates: list[str]) -> pd.DataFrame:
     """Per (symbol, date) eligibility and screen values for every date in `dates`.
 
@@ -202,10 +243,15 @@ def _equity_screen_frame(reader: AsOfReader, dates: list[str]) -> pd.DataFrame:
     else:
         grid["marketcap"] = np.nan
 
-    attrs = attrs[["symbol", "category", "exchange"]] if not attrs.empty else \
-        pd.DataFrame(columns=["symbol", "category", "exchange"])
-    grid = grid.merge(attrs, on="symbol", how="left")
+    # category is allowlisted like sector (spec/04): a current TICKERS value,
+    # read as-is (PM ruling on issue 6's Q4). exchange is point-in-time.
+    cat_attrs = (attrs[["symbol", "category"]] if not attrs.empty
+                else pd.DataFrame(columns=["symbol", "category"]))
+    grid = grid.merge(cat_attrs, on="symbol", how="left")
     grid["category_ok"] = grid["category"].isin(ELIGIBLE_CATEGORIES)
+
+    exchange_frame = _exchange_frame(reader, EQUITY_MARKET, symbols_list, dates, d_max)
+    grid = grid.merge(exchange_frame, on=["symbol", "date"], how="left")
     grid["exchange_ok"] = grid["exchange"].isin(ELIGIBLE_EXCHANGES)
 
     min_listed = (listing[listing["event"] == "listed"].groupby("symbol")["date"].min()

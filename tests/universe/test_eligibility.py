@@ -6,12 +6,42 @@ from __future__ import annotations
 
 import sqlite3
 
+import pandas as pd
 import pytest
 
 from harness import universe
 from harness.store import AsOfReader
 from tests.fixtures.universe_store import (D, SNAPSHOT, TRADING_DAYS, add_eligible_equity,
                                            finalize, new_store)
+
+
+class _FakeExchangeOnReader:
+    """Wraps an `AsOfReader`, adding a synthetic `exchange_on` that returns a
+    point-in-time exchange from a symbol's change history.
+
+    Stands in for `AsOfReader.exchange_on`, which ingest/sharadar (issues 3+5)
+    hasn't merged yet (PM ruling on issue 6's Q4). This checks the integration
+    seam `harness.universe._exchange_on` calls through to `reader.exchange_on`
+    when it exists, independent of the real loader.
+    """
+
+    def __init__(self, reader: AsOfReader, changes: dict[str, list[tuple[str, str]]]):
+        self._reader = reader
+        self._changes = changes  # symbol -> sorted [(effective_date, exchange), ...]
+
+    def __getattr__(self, name):
+        return getattr(self._reader, name)
+
+    def exchange_on(self, market, symbols, date, as_of) -> pd.DataFrame:
+        rows = []
+        for sym in (symbols if symbols is not None else self._changes):
+            exchange = None
+            for effective, ex in self._changes.get(sym, []):
+                if effective <= date:
+                    exchange = ex
+            if exchange is not None:
+                rows.append({"symbol": sym, "exchange": exchange, "source": "actions"})
+        return pd.DataFrame(rows, columns=["symbol", "exchange", "source"])
 
 
 def _lanes(reader, dates):
@@ -26,20 +56,29 @@ def _members(frame, date) -> set[str]:
 
 # ------------------------------------------------------------- listing boundary
 def test_delisted_name_excluded_on_and_after_the_delisting_date():
+    """spec/01 (penumbra-specs PR 10): a delisted name is excluded "on and
+    after" its delisting date. `AsOfReader.listed` already implements this
+    (spec/02 Store: no `delisted` event on or before D); this asserts it
+    holds through this module's own vectorized replica of that rule.
+    """
     d_idx = TRADING_DAYS.index(D) + 100
     delist_date = TRADING_DAYS[d_idx]
     day_before = TRADING_DAYS[d_idx - 1]
 
+    # A calendar anchor with bars past the delisting date, so `day_after` is
+    # itself a lane trading session (DELIST's own bars stop at delisting).
     conn = new_store()
+    add_eligible_equity(conn, "CTRL")
     add_eligible_equity(conn, "DELIST", delisted=delist_date)
     finalize(conn)
+    day_after = TRADING_DAYS[d_idx + 1]
     reader = AsOfReader(conn, SNAPSHOT)
 
-    smallcap, discovered = _lanes(reader, [day_before, delist_date])
+    smallcap, discovered = _lanes(reader, [day_before, delist_date, day_after])
     for frame in (smallcap, discovered):
         assert "DELIST" in _members(frame, day_before), "listed the day before delisting"
-        assert "DELIST" not in _members(frame, delist_date), (
-            "spec/02 Store: not listed on the delisting date itself")
+        assert "DELIST" not in _members(frame, delist_date), "excluded ON the delisting date"
+        assert "DELIST" not in _members(frame, day_after), "excluded AFTER the delisting date"
 
 
 # --------------------------------------------------------------- category/exchange
@@ -62,6 +101,25 @@ def test_eligibility_filters_exclude_non_qualifying_names(label, category, excha
         members = _members(frame, D)
         assert "CTRL" in members, "control symbol must remain eligible"
         assert label.upper() not in members, f"{label} ({category}, {exchange}) must be excluded"
+
+
+def test_exchange_is_point_in_time_ineligible_before_the_move_eligible_after():
+    d_idx = TRADING_DAYS.index(D)
+    move_date = TRADING_DAYS[d_idx + 10]
+    before, after = TRADING_DAYS[d_idx], TRADING_DAYS[d_idx + 20]
+
+    conn = new_store()
+    add_eligible_equity(conn, "MOVED", exchange="OTC")  # current value; overridden by the fake
+    finalize(conn)
+    reader = _FakeExchangeOnReader(
+        AsOfReader(conn, SNAPSHOT),
+        {"MOVED": [("2000-01-01", "OTC"), (move_date, "NASDAQ")]})
+
+    smallcap, discovered = _lanes(reader, [before, move_date, after])
+    for frame in (smallcap, discovered):
+        assert "MOVED" not in _members(frame, before), "still OTC before the move"
+        assert "MOVED" in _members(frame, move_date), "NASDAQ effective on the move date"
+        assert "MOVED" in _members(frame, after), "still NASDAQ after the move"
 
 
 @pytest.mark.parametrize("category", universe.ELIGIBLE_CATEGORIES)

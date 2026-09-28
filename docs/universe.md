@@ -43,10 +43,12 @@ with `available_at` set to the row's own date (`docs/store.md`).
 Every read goes through `harness.store.reader.AsOfReader`. A `build()` call
 issues one `panel` read (unadjusted, for price and dollar volume), one more
 `panel` read (`adjust="split_div"`, for the vol screen), one `marketcap` read,
-one `listing` read and one `symbols` read — regardless of how many dates it's
-asked for — spanning from `HISTORY_SESSIONS` (250) lane trading sessions before
-the earliest requested date to the latest one, with `as_of` set to the latest
-requested date.
+one `listing` read and one `symbols` read (for the allowlisted `category`) —
+regardless of how many dates it's asked for — spanning from `HISTORY_SESSIONS`
+(250) lane trading sessions before the earliest requested date to the latest
+one, with `as_of` set to the latest requested date. The one exception is
+`exchange`, which is point-in-time (see below) and fetched once per requested
+date rather than folded into the windowed reads.
 
 This is safe because every table this module reads has `available_at` equal to
 its own row's date, or, for `symbols`, the symbol's first listing date:
@@ -72,31 +74,43 @@ touches it, including the 250-day completeness count.
 On lane trading day D, a name is eligible when all of:
 
 - TICKERS `category` is one of `Domestic Common Stock`, `Domestic Common Stock
-  Primary Class`, `Domestic Common Stock Secondary Class`, and `exchange` is
-  one of NYSE, NASDAQ, NYSEMKT, NYSEARCA, BATS.
+  Primary Class`, `Domestic Common Stock Secondary Class`, and `exchange` (on
+  D, point-in-time; see below) is one of NYSE, NASDAQ, NYSEMKT, NYSEARCA, BATS.
 - Listed on D per `AsOfReader.listed`'s rule (a `listed` event on or before D
-  and no `delisted` event on or before D) — replicated here as a vectorized
+  and no `delisted` event on or before D, so a name is excluded on and after
+  its delisting date) — replicated here as a vectorized
   `min(listed date) <= D < min(delisted date)` per symbol rather than calling
   `listed()` once per date, since both are the same "exists a date <= D" test
   and the vectorized form is what makes the one-windowed-read design possible.
 - A bar on each of the 250 lane trading days ending at D.
 
-**Flagged for the PM (open in `docs/store.md`, "Open points"):** `category`
-and `exchange` are TICKERS current values in `symbols`, not point-in-time,
-same as `sector` (spec/04). This module reads them as the store gives them; a
-ticker's historical category or exchange change (a re-listing, an OTC
-demotion) is not reconstructed. This is not a new gap this module introduces —
-it is the same one `docs/store.md` already flags for `sector` — but issue 6's
-brief asks that it be flagged again here since eligibility is the first
-consumer that depends on it.
+**`category` and `exchange` (PM ruling on issue 6's Q3/Q4, penumbra-specs
+PR 10):**
+
+- `category` is allowlisted like `sector` (spec/04): a TICKERS current value,
+  read as-is with no point-in-time reconstruction.
+- `exchange` on D is point-in-time: the most recent ACTIONS listing or
+  exchange-change event on or before D, falling back to the TICKERS current
+  `exchange`. The real implementation, `AsOfReader.exchange_on(market,
+  symbols, date, as_of)`, is being added to `harness/store/reader.py` by the
+  Sharadar-loader worker (issues 3+5, branch `ingest/sharadar`) and hasn't
+  merged yet. `harness.universe._exchange_on` is a local stand-in with that
+  exact call signature and return shape (`symbol`, `exchange`, `source`): it
+  calls `reader.exchange_on(...)` when the method exists, and otherwise falls
+  back to the current TICKERS `exchange` (today's non-point-in-time behavior),
+  marked `# TODO(PA): switch to exchange_on after ingest/sharadar merges`.
+  Since the real method takes one date, not a window, `_exchange_frame` calls
+  it once per requested date rather than folding it into the one windowed
+  panel read described above.
 
 ## Screens (spec/01 Parameters)
 
-Every threshold below is a local constant in `harness/universe.py`
-(`SMALLCAP_CEILING`, `LIQUIDITY_FLOOR`, `VOL_FLOOR`, `PRICE_FLOOR`), marked
-`# TODO(PA): replace with config.params once PR 24 merges` — `config/params.py`
-is issue 17's (PR 24, in review at the time this module was written) and does
-not exist yet.
+Every threshold and window length below (`SMALLCAP_CEILING`, `LIQUIDITY_FLOOR`,
+`LIQUIDITY_WINDOW`, `VOL_FLOOR`, `VOL_WINDOW`, `PRICE_FLOOR`,
+`HISTORY_SESSIONS`) comes from `config.params.SPEC01` (issue 17, PR 24) —
+`config/params.py` is the single input to the run's configuration hash
+(spec/03 Run record), so it's read from there rather than duplicated as local
+constants.
 
 - **`smallcap`**: DAILY `marketcap` dated exactly D (`available_at` = D) below
   USD 2,000,000,000. A name with no DAILY row as of D is ineligible for
@@ -154,19 +168,25 @@ walk that hits a target annualized vol exactly) and volume, so every screen
 can be pushed just above or below its floor deterministically.
 
 Covered: the listing boundary (a name is excluded on and after its delisting
-date, and re-included once a stray gap ages out of the 250-day window); the
-market-cap as-of rule, including a future DAILY row within a call's fetched
-panel that must not be used for an earlier date; the missing-marketcap
-discovered-only rule (and the symmetric case, marketcap present but at or
-above the ceiling); every eligibility filter (ADR, OTC, fund, preferred, wrong
-exchange), against every eligible category; the 250-day completeness rule with
-one missing bar, both inside and aged out of the window; the D−1 median-volume
-window, with a constructed volume distribution where a day-D spike would flip
-the median above the floor if the window were off by one session but not when
-the window correctly ends at D−1; the price floor on the unadjusted close
-across a 3-for-1 split, with the split-and-dividend-adjusted series (the vol
-screen's input) checked to stay smooth across the same split; the writer round
-trip through the store; and an invariance check — both that a call asked for
-more dates doesn't change an earlier date's computed values, and that
-perturbing every bar, market-cap row and listing event dated after D leaves
-D's membership unchanged.
+date, checked both on the delisting date and the session after, and
+re-included once a stray gap ages out of the 250-day window); the point-in-time
+`exchange` rule (a name that moves from OTC to NASDAQ mid-range is ineligible
+before the move and eligible on and after it, exercised through a fake
+`exchange_on` that stands in for ingest/sharadar's not-yet-merged one, so the
+integration seam is checked independent of the real loader); the market-cap
+as-of rule, including a future DAILY row within a call's fetched panel that
+must not be used for an earlier date; the missing-marketcap discovered-only
+rule (and the symmetric case, marketcap present but at or above the ceiling);
+every eligibility filter (ADR, OTC, fund, preferred, wrong exchange), against
+every eligible category; the 250-day completeness rule with one missing bar,
+both inside and aged out of the window; the D−1 median-volume window, with a
+constructed volume distribution where a day-D spike would flip the median
+above the floor if the window were off by one session but not when the window
+correctly ends at D−1; the price floor on the unadjusted close across a
+3-for-1 split, with the split-and-dividend-adjusted series (the vol screen's
+input) checked to stay smooth across the same split; the writer round trip
+through the store; and two invariance checks — that a call asked for more
+dates doesn't change an earlier date's computed values, and that perturbing
+every bar after D (via `harness.testing.invariance.perturbations`'s delete /
+multiply / shock / shuffle battery) and, separately, every market-cap row and
+listing event dated after D, leaves D's membership unchanged.
