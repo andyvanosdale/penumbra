@@ -1,7 +1,8 @@
 """Binance public data (https://data.binance.vision).
 
 Files are immutable once published, so presence plus the bucket's ETag and size
-is enough to skip them. Monthly files cover closed months; the current month
+is enough to skip them. When the bucket republishes a file under a new ETag the
+runner stores the new bytes beside the old (``_v/<etag>/``), never over them. Monthly files cover closed months; the current month
 is filled from daily files until its monthly file appears. Every file has a
 sibling ``.CHECKSUM`` (sha256) that is verified before the file is kept.
 
@@ -82,6 +83,12 @@ def list_pairs(sess, quote: str, market: str = "spot") -> list[str]:
 class Binance(Source):
     name = "binance"
     help = "Binance public spot klines (1d, 1h) and USD-M funding rates"
+    prefix = PREFIX
+    snapshot_policy = "all"
+
+    def snapshot_include(self, key: str, entry: dict) -> bool:
+        # Funding rates are not in v1 (spec/04 Flags); they never enter a snapshot.
+        return "/futures/" not in key
 
     def add_arguments(self, p):
         p.add_argument("--quote", default="USDT", help="quote asset suffix (default USDT)")
@@ -100,14 +107,16 @@ class Binance(Source):
         for pair in pairs:
             for iv in intervals:
                 prefix = f"data/spot/monthly/klines/{pair}/{iv}/"
-                yield from self._objects(sess, prefix)
+                monthly = [o for o in list_bucket(sess, prefix)
+                           if isinstance(o, dict) and o["key"].endswith(".zip")]
+                for obj in monthly:
+                    yield self._task(obj)
                 if not args.no_daily_tail:
                     # Daily files for the months the monthly listing does not yet cover.
                     last_month = None
-                    for obj in list_bucket(sess, prefix):
-                        if isinstance(obj, dict) and obj["key"].endswith(".zip"):
-                            m = obj["key"][:-4].rsplit("-", 2)
-                            last_month = max(last_month or "", f"{m[-2]}-{m[-1]}")
+                    for obj in monthly:
+                        m = obj["key"][:-4].rsplit("-", 2)
+                        last_month = max(last_month or "", f"{m[-2]}-{m[-1]}")
                     start = _next_month(last_month) if last_month else this_month
                     dprefix = f"data/spot/daily/klines/{pair}/{iv}/"
                     for obj in list_bucket(sess, dprefix):
@@ -115,7 +124,7 @@ class Binance(Source):
                             day = obj["key"][:-4].rsplit("-", 3)
                             month = f"{day[-3]}-{day[-2]}"
                             if month >= start:
-                                yield self._task(sess, obj)
+                                yield self._task(obj)
             if args.funding:
                 base = pair
                 prefix = f"data/futures/um/monthly/fundingRate/{base}/"
@@ -124,21 +133,22 @@ class Binance(Source):
     def _objects(self, sess, prefix: str) -> Iterator[Task]:
         for obj in list_bucket(sess, prefix):
             if isinstance(obj, dict) and obj["key"].endswith(".zip"):
-                yield self._task(sess, obj)
+                yield self._task(obj)
 
     @staticmethod
-    def _task(sess, obj: dict) -> Task:
-        return Task(rel=f"{PREFIX}/{obj['key']}", version=obj["etag"], size=obj["size"],
+    def _task(obj: dict) -> Task:
+        return Task(key=f"{PREFIX}/{obj['key']}", version=obj["etag"], size=obj["size"],
                     meta={"last_modified": obj["last_modified"]})
 
     def fetch(self, task: Task, storage: Storage, args) -> tuple[int, str]:
         sess = http.session()
-        key = task.rel[len(PREFIX) + 1:]
+        key = task.key[len(PREFIX) + 1:]
         expected = None
         r = sess.get(f"{FILES}/{key}.CHECKSUM", timeout=60)
         if r.ok and r.text.strip():
             expected = r.text.split()[0].strip()
-        return http.download(sess, f"{FILES}/{key}", storage, task.rel, expect_sha256=expected)
+        task.meta["verified"] = expected is not None
+        return http.download(sess, f"{FILES}/{key}", storage, task.dest, expect_sha256=expected)
 
 
 def _next_month(ym: str) -> str:

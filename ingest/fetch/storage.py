@@ -46,6 +46,18 @@ class Storage:
         except FileNotFoundError:
             return None
 
+    def sizes(self, rel: str) -> dict[str, int]:
+        """One listing call: {relative path: size} for every file under ``rel``.
+        Lets a manifest check presence without one HEAD request per file."""
+        p = self.full(rel)
+        if not self.fs.exists(p):
+            return {}
+        out = {}
+        for full, info in self.fs.find(p, detail=True).items():
+            if info.get("type", "file") == "file":
+                out[full[len(self.base) + 1:]] = int(info.get("size", 0))
+        return out
+
     def listdir(self, rel: str) -> list[str]:
         p = self.full(rel)
         if not self.fs.exists(p):
@@ -127,10 +139,11 @@ class AtomicWriter:
         if self._fh and not self._fh.closed:
             self._fh.close()
         fs = self.storage.fs
-        dst = self.storage.full(self.rel)
-        if fs.exists(dst):
-            fs.rm(dst)
-        fs.mv(self.storage.full(self.part), dst)
+        src, dst = self.storage.full(self.part), self.storage.full(self.rel)
+        if getattr(fs, "protocol", None) in ("file", ("file", "local"), "local"):
+            os.replace(src, dst)            # atomic on a local root or a mounted volume
+        else:
+            fs.mv(src, dst)                 # object stores: copy then delete; never a rm first
         self._committed = True
 
     @property

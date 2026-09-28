@@ -13,6 +13,29 @@ from .storage import Storage
 USER_AGENT = "penumbra-fetch/1.0"
 
 
+def redact(text: str, secrets: list[str | None]) -> str:
+    """Blank every secret out of a message before it reaches a log or traceback."""
+    for sec in secrets:
+        if sec:
+            text = text.replace(sec, "***")
+    return text
+
+
+class RedactedError(RuntimeError):
+    """An HTTP failure whose message has had credentials removed."""
+
+
+def get_json(sess: requests.Session, url: str, *, params: dict, secrets: list[str | None],
+             timeout: int = 120) -> dict:
+    """GET and parse JSON; any failure surfaces with ``secrets`` redacted."""
+    try:
+        r = sess.get(url, params=params, timeout=timeout)
+        r.raise_for_status()
+        return r.json()
+    except Exception as exc:  # requests errors carry the full URL, query string included
+        raise RedactedError(redact(f"{type(exc).__name__}: {exc}", secrets)) from None
+
+
 def session(total: int = 5) -> requests.Session:
     s = requests.Session()
     retry = Retry(total=total, backoff_factor=1.0,

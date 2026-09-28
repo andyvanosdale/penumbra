@@ -64,13 +64,16 @@ def main(argv=None) -> int:
     if args.command == "status":
         for name in sorted(REGISTRY):
             m = Manifest(storage, name)
-            total = sum(e["size"] for e in m.entries.values())
-            print(f"{name:10s} {len(m):7d} files {total / 1e6:12.1f} MB")
+            cur = m.current_entries()
+            total = sum(e["size"] for e in cur.values())
+            superseded = len(m) - len(cur)
+            print(f"{name:10s} {len(cur):7d} files {total / 1e6:12.1f} MB"
+                  + (f"   ({superseded} superseded versions kept)" if superseded else ""))
         latest = storage.read_json("snapshots/latest.json")
         print(f"snapshot   {latest['snapshot_id'] if latest else '(none)'}")
         return 0
     if args.command == "snapshot":
-        print(snapshot.write(storage, sorted(REGISTRY)))
+        print(snapshot.write(storage))
         return 0
     if args.command == "verify":
         bad = snapshot.verify(storage, args.snapshot_id, args.sample)

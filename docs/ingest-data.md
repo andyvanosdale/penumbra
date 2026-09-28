@@ -31,9 +31,12 @@ snapshots/<id>.json          the file set a run was built from (spec/03 run reco
 snapshots/latest.json
 ```
 
-Raw files are never modified. Sharadar snapshots accumulate because the vendor
-restates history; a run names the snapshot it used and is rebuilt from that,
-never from a fresh download.
+Raw files are never modified in place. When a vendor republishes a file (a
+Binance ETag changes, a new Sharadar export is taken) the new bytes land beside
+the old ones (`<dir>/_v/<version>/<file>` for Binance, a new dated file for
+Sharadar); the old file stays and its manifest entry is marked superseded. A
+snapshot that named the old file still verifies. The one exception is yfinance,
+which is rewritten in place because it never enters a snapshot.
 
 ## Commands
 
@@ -61,7 +64,9 @@ sha256 of the bytes written, and the vendor's identifier for that version:
 
 - Binance: the bucket's ETag and size from the listing. Files are immutable, so a
   matching entry plus a matching object size means skip. Every download is
-  verified against the bucket's `.CHECKSUM` file before it is kept.
+  verified against the bucket's `.CHECKSUM` file before it is kept; a file whose
+  checksum was unavailable is recorded with `verified: false`. Presence is checked
+  from one listing of the source's prefix, not one request per file.
 - Sharadar: the export's `data_snapshot_time`. A table whose newest local
   snapshot is younger than `--max-age-days` is not even requested.
 - yfinance: the last complete session. A ticker already fetched through
@@ -71,6 +76,18 @@ sha256 of the bytes written, and the vendor's identifier for that version:
 Downloads stream into a `.part` file and are moved into place only when
 complete and verified, so an interrupted run leaves nothing a later run would
 mistake for a finished file.
+
+## What a snapshot names
+
+`snapshot` writes `snapshots/<id>.json` and the id is SHA-256 over the canonical
+JSON of `{path: {size, sha256}}`, nothing else (spec/02). Each source decides
+what it contributes:
+
+| Source | Policy |
+| --- | --- |
+| binance | every current kline file; funding-rate files are excluded (not in v1) |
+| sharadar | one export per table, the newest by `data_snapshot_time`; the choice is written under `groups` so a loader reads exactly that set |
+| yfinance | never |
 
 ## Keeping it current
 

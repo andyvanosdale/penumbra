@@ -10,7 +10,9 @@ spec's run record names the snapshot a run used, and the vendor restates
 history, so a re-download is never a substitute for the file a run was built
 from.
 
-Requires ``NASDAQ_DATA_LINK_API_KEY``.
+Requires ``NASDAQ_DATA_LINK_API_KEY``. The key travels in the query string, as
+the API requires; every error raised from this module has it redacted, so it
+never reaches a log or a traceback.
 """
 
 from __future__ import annotations
@@ -41,9 +43,9 @@ def request_export(sess, table: str, api_key: str, filters: dict | None = None,
         params[k] = v
     deadline = time.monotonic() + max_wait
     while True:
-        r = sess.get(f"{API}/SHARADAR/{table}.json", params=params, timeout=120)
-        r.raise_for_status()
-        info = r.json()["datatable_bulk_download"]["file"]
+        body = http.get_json(sess, f"{API}/SHARADAR/{table}.json", params=params,
+                             secrets=[api_key], timeout=120)
+        info = body["datatable_bulk_download"]["file"]
         if info.get("status") == "fresh":
             return info
         if time.monotonic() > deadline:
@@ -59,6 +61,11 @@ def snapshot_tag(data_snapshot_time: str) -> str:
 class Sharadar(Source):
     name = "sharadar"
     help = "Sharadar SEP, TICKERS, ACTIONS, DAILY, EVENTS, SFP(SPY) bulk exports"
+    prefix = PREFIX
+    snapshot_policy = "latest_per_group"      # one export per table
+
+    def snapshot_group(self, key: str) -> str:
+        return key[len(PREFIX) + 1:].split("/", 1)[0]
 
     def add_arguments(self, p):
         p.add_argument("--tables", default=",".join(DEFAULT_TABLES))
@@ -77,18 +84,22 @@ class Sharadar(Source):
                 continue
             info = request_export(sess, table, key, TABLE_FILTERS.get(table))
             tag = snapshot_tag(info["data_snapshot_time"])
-            yield Task(rel=f"{PREFIX}/{table}/{table}-{tag}.zip", version=info["data_snapshot_time"],
+            yield Task(key=f"{PREFIX}/{table}/{table}-{tag}.zip", version=info["data_snapshot_time"],
                        meta={"link": info["link"], "table": table})
 
     @staticmethod
     def _newest_local(manifest: Manifest, table: str) -> _dt.datetime | None:
         best = None
         for rel, e in manifest.entries.items():
-            if rel.startswith(f"{PREFIX}/{table}/"):
+            if e["key"].startswith(f"{PREFIX}/{table}/"):
                 t = _dt.datetime.fromisoformat(e["fetched_at"])
                 best = t if best is None or t > best else best
         return best
 
     def fetch(self, task: Task, storage: Storage, args) -> tuple[int, str]:
         sess = http.session()
-        return http.download(sess, task.meta["link"], storage, task.rel, timeout=600)
+        try:
+            return http.download(sess, task.meta["link"], storage, task.dest, timeout=600)
+        except Exception as exc:
+            key = os.environ.get("NASDAQ_DATA_LINK_API_KEY")
+            raise http.RedactedError(http.redact(f"{type(exc).__name__}: {exc}", [key])) from None

@@ -78,6 +78,10 @@ def write_csv(storage: Storage, rel: str, df: pd.DataFrame) -> tuple[int, str]:
         return w.size, w.sha256
 
 
+def _download(yf, ticker: str, start: str, end: str):
+    return yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False, threads=False)
+
+
 def load_tickers(args) -> list[str]:
     if args.tickers:
         return [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
@@ -91,6 +95,9 @@ def load_tickers(args) -> list[str]:
 class YFinance(Source):
     name = "yfinance"
     help = "yfinance daily bars per ticker (screen and legacy control only)"
+    prefix = PREFIX
+    versioned = False              # rewritten in place by design
+    snapshot_policy = "none"       # never read by a committed run (spec/02)
 
     def add_arguments(self, p):
         p.add_argument("--tickers", default="", help="comma-separated tickers")
@@ -101,29 +108,27 @@ class YFinance(Source):
     def plan(self, storage: Storage, manifest: Manifest, args) -> Iterable[Task]:
         through = last_session().isoformat()
         for t in load_tickers(args):
-            yield Task(rel=f"{PREFIX}/{t}.csv", version=f"through:{through}",
+            yield Task(key=f"{PREFIX}/{t}.csv", version=f"through:{through}",
                        meta={"ticker": t, "start": args.start, "through": through})
 
     def should_skip(self, task: Task, manifest: Manifest) -> bool:
-        return manifest.has(task.rel, version=task.version)
+        return manifest.has(task.key, version=task.version)
 
     def fetch(self, task: Task, storage: Storage, args) -> tuple[int, str]:
         import yfinance as yf
         ticker, start = task.meta["ticker"], task.meta["start"]
         end = (_dt.date.fromisoformat(task.meta["through"]) + _dt.timedelta(days=1)).isoformat()
-        existing = pd.DataFrame(columns=COLUMNS) if args.full else read_csv(storage, task.rel)
+        existing = pd.DataFrame(columns=COLUMNS) if args.full else read_csv(storage, task.dest)
         fetch_from = start
         if not existing.empty:
             last = _dt.date.fromisoformat(existing["date"].max())
             fetch_from = (last - _dt.timedelta(days=OVERLAP_DAYS)).isoformat()
-        fresh = normalize(yf.download(ticker, start=fetch_from, end=end, progress=False,
-                                      auto_adjust=False, threads=False), ticker)
+        fresh = normalize(_download(yf, ticker, fetch_from, end), ticker)
         merged, restated = merge(existing, fresh)
         if restated:
-            merged = normalize(yf.download(ticker, start=start, end=end, progress=False,
-                                           auto_adjust=False, threads=False), ticker)
+            merged = normalize(_download(yf, ticker, start, end), ticker)
         if merged.empty:
             raise ValueError(f"no data for {ticker}")
         task.meta["rows"] = int(len(merged))
         task.meta["restated"] = bool(restated)
-        return write_csv(storage, task.rel, merged)
+        return write_csv(storage, task.dest, merged)
