@@ -71,6 +71,7 @@ class StrategyParams:
     no_bar_closure_sessions: int
     crypto_entry_hour_utc: int
     benchmark_draws: int
+    benchmark_quintile_bins: int
 
 
 SPEC05 = StrategyParams(
@@ -84,6 +85,9 @@ SPEC05 = StrategyParams(
     no_bar_closure_sessions=5,
     crypto_entry_hour_utc=1,
     benchmark_draws=1000,
+    # "the same rvol_20 quintile of the day's universe as that candidate"
+    # (spec/05 Benchmark): a quintile is 5 bins by definition.
+    benchmark_quintile_bins=5,
 )
 
 
@@ -186,6 +190,24 @@ STRESS_CASES = (
 )
 
 
+# --- spec/04 "Features and labels" (Labels; referenced by spec/07 Evaluation) -
+# The forward-return horizons and the cohort-split threshold are reported
+# diagnostics, not decision inputs, but they are locked text: a change to
+# either changes what the horizon curve and the cohort split mean.
+@dataclass(frozen=True)
+class LabelParams:
+    horizon_days: tuple[int, ...]
+    cohort_zscore_threshold: Decimal  # spec/07 Cohort split: zscore_20 <= this
+    cohort_shock_share_floor: Decimal  # shock's share of the 20-day z
+
+
+SPEC04 = LabelParams(
+    horizon_days=(5, 21, 63, 252),
+    cohort_zscore_threshold=Decimal("-2.0"),
+    cohort_shock_share_floor=Decimal("0.5"),
+)
+
+
 # --- spec/07 "Evaluation" ------------------------------------------------------
 # The decision rule's locked thresholds and the two controls ("Controls").
 @dataclass(frozen=True)
@@ -198,6 +220,16 @@ class EvaluationParams:
     drawdown_budget: Decimal
     bootstrap_resamples: int
     top_pnl_days_excluded: int
+    mean_return_ci_confidence: Decimal
+    regime_vol_window_days: int
+    regime_proxy_equities: str
+    regime_proxy_crypto: str
+    # Condition 5 ("net return positive ... in each half of the era") needs a
+    # split rule the spec does not name. Reading, flagged for PM confirmation
+    # in the PR description: the era's lane trading days in date order, split
+    # at the midpoint by count (not by calendar date), consistent with every
+    # other window in spec/05-07 being counted in lane trading days.
+    era_half_split: str
 
 
 SPEC07 = EvaluationParams(
@@ -209,6 +241,11 @@ SPEC07 = EvaluationParams(
     drawdown_budget=Decimal("0.25"),
     bootstrap_resamples=10000,
     top_pnl_days_excluded=10,
+    mean_return_ci_confidence=Decimal("0.95"),
+    regime_vol_window_days=20,
+    regime_proxy_equities="SPY",
+    regime_proxy_crypto="BTCUSDT",
+    era_half_split="trading_day_midpoint",
 )
 
 
@@ -251,6 +288,7 @@ class LockedParams:
     costs_equities: EquityCostParams
     costs_crypto: CryptoCostParams
     stress_cases: tuple[StressCase, ...]
+    labels: LabelParams
     evaluation: EvaluationParams
     controls: tuple[ControlDefinition, ...]
 
@@ -262,6 +300,7 @@ ALL_LOCKED_PARAMS = LockedParams(
     costs_equities=SPEC06_EQUITY,
     costs_crypto=SPEC06_CRYPTO,
     stress_cases=STRESS_CASES,
+    labels=SPEC04,
     evaluation=SPEC07,
     controls=CONTROLS,
 )

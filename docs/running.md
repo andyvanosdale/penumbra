@@ -19,10 +19,20 @@ whitespace, `Decimal` values as strings) of:
 
 - every locked parameter in `config/params.py` (spec/01, spec/05, spec/06 and
   spec/07: universe thresholds, the strategy rule, both lanes' cost models,
-  the three cost-stress cases, the evaluation thresholds and the two control
-  definitions), and
+  the three cost-stress cases, the label horizons and cohort-split threshold
+  (spec/04, read by spec/07's diagnostics), the evaluation thresholds
+  (including the regime-split proxy and window, and the mean-return
+  confidence level) and the two control definitions), and
 - the lane's era bounds (`config/eras.py`), and
 - the code commit.
+
+`config/params.py` also fixes a reading the spec leaves open: condition 5 of
+the decision rule ("net return positive ... in each half of the era") does not
+say how the era is split. `EvaluationParams.era_half_split` records the
+reading this harness uses (`trading_day_midpoint`: the era's lane trading days
+in date order, split at the midpoint by count) and is itself part of the
+hash, so a later change to the reading is visible. This is a proposed reading
+for the PM to confirm, not a locked spec value.
 
 `params` and `eras` default to the real values (`config.params.ALL_LOCKED_PARAMS`
 and this lane's `dev`/`validation`/`holdout` bounds) and are only overridden in
@@ -44,12 +54,12 @@ prints the hash for the current checkout's `HEAD`.
 ## The run record
 
 `harness.runrecord.RunLog(root_url)` writes one JSON record per run to
-`<root_url>/runs/<run_id>.json` and appends the same record to
-`<root_url>/runs/index.jsonl`, via `fsspec` — `root_url` can be a local path, a
-mounted volume, or `s3://...`. The CLI reads the root from the
-`PENUMBRA_DATA_ROOT` environment variable directly (`config/env.py`, issue 2,
-lands separately; once both are merged the PA will switch this module to read
-through it).
+`<root_url>/runs/<run_id>.json`, via `fsspec` — `root_url` can be a local path,
+a mounted volume, or `s3://...`. Listing (`list()`, and the dev-hash count
+below) is derived from a glob over `runs/*.json` rather than a maintained
+index file: `s3fs` has no append semantics for S3 objects, and one JSON file
+per run already carries everything an index would. The CLI reads the root
+through `config.env.data_root()` (`PENUMBRA_DATA_ROOT`).
 
 A record carries:
 
@@ -86,11 +96,11 @@ diagnostic variant and the benchmark (`docs/architecture.md`, "Runs").
 
 `spec/03` ("Use of eras"): "the number of distinct configuration hashes run in
 dev for that lane is reported next to the validation result." A validation
-record's `dev_config_hashes_before` is computed at record time from
-`runs/index.jsonl`: every prior `dev`-era record for the same lane whose kind
-is not a control or diagnostic (`placebo`, `positive_control`, `capped`,
-`close_fill`, `benchmark`) contributes its `configuration_hash` to the set;
-the field is the size of that set.
+record's `dev_config_hashes_before` is computed at record time from the
+existing `runs/*.json` files: every prior `dev`-era record for the same lane
+whose kind is not a control or diagnostic (`placebo`, `positive_control`,
+`capped`, `close_fill`, `benchmark`) contributes its `configuration_hash` to
+the set; the field is the size of that set.
 
 ## CLI
 
@@ -100,8 +110,8 @@ python -m harness.runrecord list [--lane <lane>] [--era <dev|validation|holdout>
 python -m harness.runrecord show <run_id>
 ```
 
-`list` and `show` read `PENUMBRA_DATA_ROOT`; `hash` does not (it only needs the
-checkout's git HEAD).
+`list` and `show` read `PENUMBRA_DATA_ROOT` through `config.env.data_root()`;
+`hash` does not (it only needs the checkout's git HEAD).
 
 ## Reproduce from a snapshot (owed)
 

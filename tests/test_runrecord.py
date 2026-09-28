@@ -6,6 +6,7 @@ import dataclasses
 import datetime as _dt
 import subprocess
 import sys
+import uuid
 from decimal import Decimal
 from pathlib import Path
 
@@ -239,6 +240,25 @@ def test_list_filters_by_lane_and_era(tmp_path):
 
     dev_runs = list(log.list(era="dev"))
     assert len(dev_runs) == 2
+
+
+def test_run_log_against_memory_filesystem():
+    # fsspec's memory:// filesystem has the same no-append semantics as
+    # s3fs (no local disk, no network) and is what caught the original
+    # index.jsonl append bug: an S3 object can't be opened in append mode.
+    root = f"memory://runrecord-test-{uuid.uuid4().hex}"
+    log = runrecord.RunLog(root)
+    rec1 = log.record(
+        lane="smallcap", era="dev", kind="primary", configuration_hash="h1",
+        snapshot_id="s", commit=_commit(), research_log_entry="research_log/x.md",
+    )
+    rec2 = log.record(
+        lane="smallcap", era="dev", kind="benchmark", configuration_hash="h1",
+        snapshot_id="s", commit=_commit(), research_log_entry="research_log/x.md",
+    )
+    assert log.get(rec1.run_id)["configuration_hash"] == "h1"
+    run_ids = {rec["run_id"] for rec in log.list(lane="smallcap")}
+    assert run_ids == {rec1.run_id, rec2.run_id}
 
 
 def test_unknown_run_kind_rejected(tmp_path):

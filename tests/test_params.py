@@ -45,6 +45,20 @@ def test_evaluation_spec07():
     assert params.SPEC07.net_share_of_gross_floor == Decimal("0.5")
     assert params.SPEC07.z_threshold == Decimal("3.0")
     assert params.SPEC07.z_threshold_stress == Decimal("2.0")
+    assert params.SPEC07.mean_return_ci_confidence == Decimal("0.95")
+    assert params.SPEC07.regime_vol_window_days == 20
+    assert params.SPEC07.regime_proxy_equities == "SPY"
+    assert params.SPEC07.regime_proxy_crypto == "BTCUSDT"
+
+
+def test_labels_spec04():
+    assert params.SPEC04.horizon_days == (5, 21, 63, 252)
+    assert params.SPEC04.cohort_zscore_threshold == Decimal("-2.0")
+    assert params.SPEC04.cohort_shock_share_floor == Decimal("0.5")
+
+
+def test_benchmark_quintile_bins():
+    assert params.SPEC05.benchmark_quintile_bins == 5
 
 
 def test_controls():
@@ -78,5 +92,6 @@ def test_all_locked_params_wires_every_group():
     assert all_params.costs_equities is params.SPEC06_EQUITY
     assert all_params.costs_crypto is params.SPEC06_CRYPTO
     assert all_params.stress_cases is params.STRESS_CASES
+    assert all_params.labels is params.SPEC04
     assert all_params.evaluation is params.SPEC07
     assert all_params.controls is params.CONTROLS

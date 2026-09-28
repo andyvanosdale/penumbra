@@ -1,9 +1,9 @@
 """Configuration hash, run log and CLI (spec/03 "Run record").
 
 A run is `(lane, era, configuration hash, snapshot id)` (docs/architecture.md
-"Runs"). This module owns the hash, the append-only log under the data root,
-and a small CLI. The leakage-suite gate itself is issue 18's
-`harness/guards.py`; this module only carries its status as a field.
+"Runs"). This module owns the hash, the log under the data root, and a small
+CLI. The leakage-suite gate itself is issue 18's `harness/guards.py`; this
+module only carries its status as a field.
 
 The reproduce-from-snapshot command needs the fetcher (PR 19), the store
 (issue 16) and the loaders (issues 3 and 4) and is not implemented here
@@ -17,7 +17,6 @@ import dataclasses
 import datetime as _dt
 import hashlib
 import json
-import os
 import subprocess
 import uuid
 from dataclasses import dataclass
@@ -27,6 +26,7 @@ from typing import Any, Iterator
 
 import fsspec
 
+import config.env as env_mod
 import config.eras as eras_mod
 import config.params as params_mod
 
@@ -139,8 +139,12 @@ class RunRecord:
 
 
 class RunLog:
-    """`runs/<run_id>.json` plus the append-only `runs/index.jsonl` under a
-    data root, via `fsspec` so the root can be local, a volume or `s3://`."""
+    """`runs/<run_id>.json` under a data root, via `fsspec` so the root can be
+    local, a volume or `s3://`.
+
+    The listing is derived from a glob over `runs/*.json` rather than a
+    maintained index file: `s3fs` has no append semantics for S3 objects, and
+    one JSON file per run already carries everything an index would."""
 
     def __init__(self, root_url: str):
         self.root_url = root_url
@@ -151,9 +155,6 @@ class RunLog:
 
     def _run_path(self, run_id: str) -> str:
         return f"{self._runs_dir()}/{run_id}.json"
-
-    def _index_path(self) -> str:
-        return f"{self._runs_dir()}/index.jsonl"
 
     def record(
         self,
@@ -211,7 +212,7 @@ class RunLog:
 
     def _dev_config_hash_count(self, lane: str) -> int:
         hashes: set[str] = set()
-        for rec in self._iter_index():
+        for rec in self._iter_runs():
             if rec.get("lane") != lane or rec.get("era") != "dev":
                 continue
             if rec.get("kind") in _CONTROL_AND_DIAGNOSTIC_KINDS:
@@ -224,39 +225,26 @@ class RunLog:
         payload = canonical_json(record.to_dict())
         with self._fs.open(self._run_path(record.run_id), "w") as f:
             f.write(payload)
-        with self._fs.open(self._index_path(), "a") as f:
-            f.write(payload + "\n")
 
-    def _iter_index(self) -> Iterator[dict]:
-        if not self._fs.exists(self._index_path()):
+    def _iter_runs(self) -> Iterator[dict]:
+        runs_dir = self._runs_dir()
+        if not self._fs.exists(runs_dir):
             return
-        with self._fs.open(self._index_path(), "r") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    yield json.loads(line)
+        for path in sorted(self._fs.glob(f"{runs_dir}/*.json")):
+            with self._fs.open(path, "r") as f:
+                yield json.loads(f.read())
 
     def get(self, run_id: str) -> dict:
         with self._fs.open(self._run_path(run_id), "r") as f:
             return json.loads(f.read())
 
     def list(self, lane: str | None = None, era: str | None = None) -> Iterator[dict]:
-        for rec in self._iter_index():
+        for rec in self._iter_runs():
             if lane is not None and rec.get("lane") != lane:
                 continue
             if era is not None and rec.get("era") != era:
                 continue
             yield rec
-
-
-def _data_root() -> str:
-    root = os.environ.get("PENUMBRA_DATA_ROOT")
-    if not root:
-        raise SystemExit(
-            "PENUMBRA_DATA_ROOT is not set; see docs/running.md and "
-            "docs/environment.md"
-        )
-    return root
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -280,7 +268,10 @@ def main(argv: list[str] | None = None) -> int:
         print(config_hash(args.lane, commit.sha))
         return 0
 
-    run_log = RunLog(_data_root())
+    try:
+        run_log = RunLog(env_mod.data_root())
+    except env_mod.MissingEnvVar as exc:
+        raise SystemExit(str(exc)) from None
 
     if args.command == "list":
         for rec in run_log.list(lane=args.lane, era=args.era):
