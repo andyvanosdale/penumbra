@@ -179,7 +179,7 @@ Two consequences shape the design:
 
 - `pytest -q` runs everything in CI (`.github/workflows/tests.yml`) on every pull
   request and on `main`.
-- Marker `leakage` covers the store leakage test, feature invariance and exit
+- Marker `leakage` (registered in `pytest.ini`) covers the store leakage test, feature invariance and exit
   invariance (spec/02). The run gate checks these.
 - Tests run on synthetic data and vendor-shaped fixtures (`tests/fixtures/`). No
   test touches the network. No Sharadar key exists yet, so Sharadar paths are

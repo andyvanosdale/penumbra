@@ -1,6 +1,8 @@
 # Runtime
 pandas>=2.0
 numpy>=1.24
+# Storage roots (local, volume, s3:// with s3fs) for raw files and the run log.
+fsspec>=2024.2
 
 # Legacy plumbing test's real-price pull (legacy/pull_prices.py); never read by a
 # committed run (spec/02 Sources).
