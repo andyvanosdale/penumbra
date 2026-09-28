@@ -30,10 +30,11 @@ Conventions (spec/04):
 `sector_rel_ret_1`'s "eligible equities" (spec/01 Eligibility) is issue 6's universe
 builder, built in parallel. This module takes it as the `eligible` parameter: a
 DataFrame with `date` and `symbol` columns (the shape `AsOfReader.lane_membership`
-returns), naming the eligible names on each date. When `eligible` is omitted, this
-module falls back to "every symbol with a valid return on D" as a local stand-in —
-flagged in the PR description for the PA to replace with the real universe once
-issue 6 lands.
+returns), naming the eligible names on each date. For an equity lane (`smallcap`,
+`discovered`), `eligible` is required: a committed run that forgot to pass it would
+otherwise get a silently non-spec `sector_rel_ret_1` (averaged over every name with
+a return, not the spec/01 screen) with no error. `crypto` has no `sector_rel_ret_1`
+and never needs it.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ from typing import Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from config.params import SPEC01
+from config.params import SPEC01, SPEC05
 from harness.store.calendar import calendar_for_lane
 from harness.store.reader import AsOfReader, iso_date
 
@@ -53,14 +54,24 @@ ANNUALIZATION = {"nyse": 252.0, "utc": 365.0}
 LANE_MARKET = {"smallcap": "us_equity", "discovered": "us_equity", "crypto": "binance_spot"}
 EQUITY_LANES = ("smallcap", "discovered")
 
-RVOL_WINDOW = 20
-ZSCORE_WINDOW = 20
+# `rvol_20`'s window is spec/01's "20-day realized vol" (the equities vol-floor
+# window; crypto's own vol floor uses 30 days, but spec/04's rvol_20 is a fixed
+# 20 for every lane) — the same 20 days, not a second literal.
+RVOL_WINDOW = SPEC01.vol_floor_window_days
+# `zscore_20`'s window is spec/05's target window: "zscore_20 stays ... as the
+# target's mean" (spec/DECISIONS.md, "Candidate is a one-day shock, not a band
+# position") — the strategy's 20-day-mean-close target and this feature share
+# one window by design.
+ZSCORE_WINDOW = SPEC05.target_window_days
 # spec/01 Eligibility fixes an equity's full-history requirement at 250 lane
 # trading days "so every feature window is full" — the same 250 spec/04 uses
 # for vol_pctl_250 and dist_52w_low. Sourced from config/params.py (the
 # locked-parameter source of truth) rather than a second literal.
 VOL_PCTL_WINDOW = SPEC01.equities_full_history_days
 DIST_52W_WINDOW = SPEC01.equities_full_history_days
+# No spec/01/05/06/07 locked parameter matches these two: they are spec/04's
+# own 20-day windows for dd_from_20d_high and range_rel_20, read directly off
+# its features table.
 DD_20D_WINDOW = 20
 RANGE_REL_WINDOW = 20
 CLOSE_LOC_LAG = 2
@@ -131,22 +142,35 @@ def _roll(s: pd.Series, window: int, how: str, ddof: int = 1) -> pd.Series:
 
 
 def _midrank_pctl(s: pd.Series, window: int) -> pd.Series:
-    """Rolling rank of the window's last value, divided by `window`.
+    """Rolling rank of each window's last value, divided by `window`.
 
     Ties share the mean rank of the tied group (the midrank convention: rank(x) =
     count(v < x) + (count(v == x) + 1) / 2), so a value tied for the top of a
     window of 250 does not score a full 1.0 on its own. NaN unless every session
     in the window has a value.
-    """
-    def midrank(x: np.ndarray) -> float:
-        if np.isnan(x).any():
-            return np.nan
-        last = x[-1]
-        less = float(np.sum(x < last))
-        equal = float(np.sum(x == last))
-        return (less + (equal + 1.0) / 2.0) / window
 
-    return s.rolling(window).apply(midrank, raw=True)
+    Vectorized with `sliding_window_view` rather than a per-window Python
+    callback: `vol_pctl_250` is the one feature whose window (250) makes a
+    naive `rolling(...).apply` callback the dominant cost of a call over a
+    real universe (see the PR description for the measured speedup).
+    """
+    values = s.to_numpy(dtype=float)
+    n = len(values)
+    out = np.full(n, np.nan)
+    if n < window:
+        return pd.Series(out, index=s.index)
+
+    windows = np.lib.stride_tricks.sliding_window_view(values, window)  # (n - window + 1, window)
+    last = windows[:, -1:]
+    # NaN comparisons are always False, so a window containing one silently
+    # undercounts `less`/`equal`; harmless, since `valid` below masks it to
+    # NaN regardless of what those counts came out to.
+    less = np.sum(windows < last, axis=1)
+    equal = np.sum(windows == last, axis=1)
+    valid = ~np.isnan(windows).any(axis=1)
+    midrank = (less + (equal + 1.0) / 2.0) / window
+    out[window - 1:] = np.where(valid, midrank, np.nan)
+    return pd.Series(out, index=s.index)
 
 
 def _reindexed(bars: pd.DataFrame, sessions: list[str]) -> pd.DataFrame:
@@ -226,9 +250,7 @@ def _filing_2d(events: pd.DataFrame, sessions: list[str], dates: list[str],
     return pd.DataFrame(rows, columns=["symbol", "date", "filing_2d"])
 
 
-def _eligible_lookup(eligible: pd.DataFrame | None) -> dict[str, set[str]] | None:
-    if eligible is None:
-        return None
+def _eligible_lookup(eligible: pd.DataFrame) -> dict[str, set[str]]:
     if not {"date", "symbol"}.issubset(eligible.columns):
         raise FeatureError("eligible must have 'date' and 'symbol' columns")
     lookup: dict[str, set[str]] = {}
@@ -239,12 +261,11 @@ def _eligible_lookup(eligible: pd.DataFrame | None) -> dict[str, set[str]] | Non
 
 def _sector_rel_ret_1(per_symbol: dict[str, pd.DataFrame], sectors: Mapping[str, str],
                       dates: list[str], symbols: Sequence[str],
-                      eligible_by_date: dict[str, set[str]] | None) -> pd.DataFrame:
+                      eligible_by_date: dict[str, set[str]]) -> pd.DataFrame:
     """Today's return minus the equal-weight return of eligible sector peers.
 
     "Eligible" (spec/01) gates who is *averaged*, not whether the name itself
-    gets a value: a name outside the eligible set (or with no `eligible` given
-    at all, the fallback in the module docstring) still gets a
+    gets a value: a name outside the eligible set still gets a
     `sector_rel_ret_1` computed against its eligible peers, excluding itself
     from that average only when it is itself one of them.
     """
@@ -255,13 +276,13 @@ def _sector_rel_ret_1(per_symbol: dict[str, pd.DataFrame], sectors: Mapping[str,
             r = per_symbol[s].at[d, "_simple_ret_1"] if d in per_symbol[s].index else np.nan
             if not pd.isna(r):
                 own_by_symbol[s] = r
-        eligible_here = eligible_by_date.get(d, set()) if eligible_by_date is not None else None
-        by_sector: dict[str, list[float]] = {}
+        eligible_here = eligible_by_date.get(d, set())
+        by_sector: dict[str, list[tuple[str, float]]] = {}
         for s, r in own_by_symbol.items():
             sector = sectors.get(s)
             if sector is None:
                 continue
-            if eligible_here is None or s in eligible_here:
+            if s in eligible_here:
                 by_sector.setdefault(sector, []).append((s, r))
 
         for s in symbols:
@@ -287,14 +308,18 @@ def build_features(reader: AsOfReader, lane: str, dates, symbols=None,
 
     `symbols` is `None` (every symbol the store carries for the lane's market over
     the window) or an explicit list. `eligible` is the equities universe used by
-    `sector_rel_ret_1` (spec/01); see the module docstring for its shape and the
-    fallback used when it is omitted.
+    `sector_rel_ret_1` (spec/01); see the module docstring for its shape. Required
+    for `smallcap`/`discovered` — there is no silent fallback.
 
     Returns a DataFrame keyed by (lane, market, symbol, date), one column per
     feature and flag.
     """
     if lane not in LANE_MARKET:
         raise FeatureError(f"lane must be one of {sorted(LANE_MARKET)}, got {lane!r}")
+    if lane in EQUITY_LANES and eligible is None:
+        raise FeatureError(
+            f"eligible is required for lane {lane!r} (sector_rel_ret_1, spec/01 Eligibility); "
+            "pass the universe builder's lane_membership-shaped DataFrame")
     market = LANE_MARKET[lane]
     calendar_name = calendar_for_lane(lane)
     ann = ANNUALIZATION[calendar_name]

@@ -14,7 +14,7 @@ import pytest
 
 from harness.features import build_features
 from harness.store import AsOfReader
-from tests.fixtures.features import build_equity_store, flat_bar, nyse_sessions
+from tests.fixtures.features import all_eligible, build_equity_store, flat_bar, nyse_sessions
 
 
 def test_zscore_20():
@@ -23,7 +23,8 @@ def test_zscore_20():
     conn = build_equity_store({"900001": {d: flat_bar(c) for d, c in zip(dates, closes)}})
     reader = AsOfReader(conn, "feat-a")
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     mean_20 = statistics.mean(closes)
     std_20 = statistics.stdev(closes)
     expected = (closes[-1] - mean_20) / std_20
@@ -42,7 +43,8 @@ def test_vol_pctl_250_no_ties():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(250)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     # D is the strict maximum of the 250-window: rank 250 of 250.
     assert out.loc[0, "vol_pctl_250"] == pytest.approx(1.0)
 
@@ -53,7 +55,8 @@ def test_vol_pctl_250_ties_use_the_midrank():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(250)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     # All 250 tie: midrank = (0 + (250 + 1) / 2) / 250.
     expected = (0 + (250 + 1) / 2) / 250
     assert out.loc[0, "vol_pctl_250"] == pytest.approx(expected)
@@ -65,5 +68,6 @@ def test_vol_pctl_250_is_nan_with_fewer_than_250_sessions():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(249)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     assert out.loc[0, "vol_pctl_250"] != out.loc[0, "vol_pctl_250"]  # NaN

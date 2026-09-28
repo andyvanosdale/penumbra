@@ -17,7 +17,7 @@ import pytest
 
 from harness.features import build_features
 from harness.store import AsOfReader
-from tests.fixtures.features import build_equity_store, nyse_sessions
+from tests.fixtures.features import all_eligible, build_equity_store, nyse_sessions
 
 pytestmark = pytest.mark.leakage
 
@@ -52,8 +52,11 @@ def test_features_at_D_are_unchanged_by_future_bars_and_events():
         dict(symbol="B", filing_date=d_plus_2, available_at=d_plus_2),
     ]
 
-    with_future = build_features(_build(dates, d, events, include_future=True), "smallcap", [d])
-    without_future = build_features(_build(dates, d, events, include_future=False), "smallcap", [d])
+    eligible = all_eligible(["A", "B"], [d])
+    with_future = build_features(_build(dates, d, events, include_future=True), "smallcap", [d],
+                                 eligible=eligible)
+    without_future = build_features(_build(dates, d, events, include_future=False), "smallcap",
+                                    [d], eligible=eligible)
 
     pd.testing.assert_frame_equal(with_future.reset_index(drop=True),
                                   without_future.reset_index(drop=True))

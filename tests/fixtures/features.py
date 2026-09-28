@@ -85,3 +85,15 @@ def flat_bar(close: float, half_range: float = 1.0, volume: float = 1_000.0) -> 
     """A bar with `close` at the midpoint of [close - half_range, close + half_range]."""
     return dict(open=close, high=close + half_range, low=close - half_range, close=close,
                volume=volume)
+
+
+def all_eligible(symbols, dates) -> pd.DataFrame:
+    """An `eligible` frame naming every symbol eligible on every date.
+
+    `build_features` requires `eligible` for equity lanes (spec/01); most
+    feature tests aren't exercising `sector_rel_ret_1`'s eligibility screen at
+    all, so this is the "everyone is eligible" frame for them to pass through.
+    """
+    if isinstance(symbols, str):
+        symbols = [symbols]
+    return pd.DataFrame([(d, s) for d in dates for s in symbols], columns=["date", "symbol"])

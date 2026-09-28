@@ -9,9 +9,9 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from harness.features import build_features
+from harness.features import FeatureError, build_features
 from harness.store import AsOfReader
-from tests.fixtures.features import build_equity_store, flat_bar, nyse_sessions
+from tests.fixtures.features import all_eligible, build_equity_store, flat_bar, nyse_sessions
 
 
 def _panel(prev_close: float, today_close: float, dates: list[str]) -> dict[str, dict]:
@@ -32,7 +32,8 @@ def test_sector_rel_ret_1_equal_weight_excluding_self():
     conn = build_equity_store(bars, sectors=sectors)
     reader = AsOfReader(conn, "feat-a")
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible(["A", "B", "C", "D"], [dates[-1]]))
     row = out.set_index("symbol")
 
     # A's peers are B (0%) and C (-10%): peer avg = -5%.
@@ -64,6 +65,17 @@ def test_sector_rel_ret_1_respects_the_eligible_set():
     # C is ineligible, so it is excluded from A and B's peer average, but it
     # still gets its own value, computed against its (eligible) peers A and B.
     assert row.loc["C", "sector_rel_ret_1"] == pytest.approx(-0.10 - 0.05)
+
+
+def test_eligible_is_required_for_equity_lanes():
+    dates = nyse_sessions(2)
+    bars = {"A": _panel(100.0, 110.0, dates)}
+    conn = build_equity_store(bars, sectors={"A": "Tech"})
+    reader = AsOfReader(conn, "feat-a")
+
+    for lane in ("smallcap", "discovered"):
+        with pytest.raises(FeatureError, match="eligible"):
+            build_features(reader, lane, [dates[-1]])
 
 
 def test_sector_rel_ret_1_is_nan_for_crypto():

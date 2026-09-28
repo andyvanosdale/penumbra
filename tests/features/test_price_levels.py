@@ -9,7 +9,7 @@ import pytest
 
 from harness.features import build_features
 from harness.store import AsOfReader
-from tests.fixtures.features import build_equity_store, nyse_sessions
+from tests.fixtures.features import all_eligible, build_equity_store, nyse_sessions
 
 
 def _bars(rows: list[dict]) -> dict[str, dict]:
@@ -27,7 +27,8 @@ def test_dist_52w_low():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(250)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     assert out.loc[0, "dist_52w_low"] == pytest.approx(80.0 / 50.0 - 1.0)
 
 
@@ -39,7 +40,8 @@ def test_dd_from_20d_high():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(20)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     assert out.loc[0, "dd_from_20d_high"] == pytest.approx(100.0 / 130.0 - 1.0)
 
 
@@ -52,7 +54,7 @@ def test_close_loc_normal_and_flat_bar():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(2)
 
-    out = build_features(reader, "smallcap", dates)
+    out = build_features(reader, "smallcap", dates, eligible=all_eligible("900001", dates))
     assert out.loc[0, "close_loc"] == pytest.approx((104.0 - 90.0) / (110.0 - 90.0))
     assert out.loc[1, "close_loc"] == pytest.approx(0.5)
 
@@ -66,7 +68,8 @@ def test_gap():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(2)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     assert out.loc[0, "gap"] == pytest.approx(103.0 / 100.0 - 1.0)
 
 
@@ -78,7 +81,8 @@ def test_range_rel_20():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(20)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     expected = ranges[-1] / statistics.mean(ranges)
     assert out.loc[0, "range_rel_20"] == pytest.approx(expected)
 
@@ -94,7 +98,8 @@ def test_ret_per_vol():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(250)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     simple_ret = 110.0 / 100.0 - 1.0
     vol_pctl = 1.0  # strict max of the window, no ties
     assert out.loc[0, "vol_pctl_250"] == pytest.approx(vol_pctl)
@@ -111,7 +116,8 @@ def test_close_loc_chg_2():
     reader = AsOfReader(conn, "feat-a")
     dates = nyse_sessions(3)
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     loc_d2 = (100.0 - 90.0) / (110.0 - 90.0)
     loc_d = (116.0 - 80.0) / (120.0 - 80.0)
     assert out.loc[0, "close_loc_chg_2"] == pytest.approx(loc_d - loc_d2)

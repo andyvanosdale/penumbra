@@ -14,7 +14,7 @@ import pytest
 
 from harness.features import build_features
 from harness.store import AsOfReader
-from tests.fixtures.features import build_equity_store, flat_bar, nyse_sessions
+from tests.fixtures.features import all_eligible, build_equity_store, flat_bar, nyse_sessions
 
 ANN = math.sqrt(252.0)
 
@@ -29,7 +29,8 @@ def test_ret_1_is_the_one_day_log_return():
     conn = build_equity_store({"900001": _panel(closes)})
     reader = AsOfReader(conn, "feat-a")
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     expected = math.log(110.0 / 100.0)
     assert out.loc[0, "ret_1"] == pytest.approx(expected)
 
@@ -48,7 +49,8 @@ def test_rvol_20_and_rvol_20_prev():
     conn = build_equity_store({"900001": _panel(closes)})
     reader = AsOfReader(conn, "feat-a")
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     row = out.iloc[0]
 
     expected_rvol_20_prev = statistics.stdev(log_rets[:20]) * ANN
@@ -65,7 +67,8 @@ def test_rvol_windows_are_nan_until_full():
     conn = build_equity_store({"900001": _panel(closes)})
     reader = AsOfReader(conn, "feat-a")
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     row = out.iloc[0]
     assert math.isnan(row["rvol_20_prev"])
     assert math.isnan(row["rvol_20"])
@@ -92,7 +95,8 @@ def test_shock_uses_the_window_ending_D_minus_1_not_D():
     conn = build_equity_store({"900001": _panel(closes)})
     reader = AsOfReader(conn, "feat-a")
 
-    out = build_features(reader, "smallcap", [dates[-1]])
+    out = build_features(reader, "smallcap", [dates[-1]],
+                        eligible=all_eligible("900001", [dates[-1]]))
     row = out.iloc[0]
 
     daily_vol_prev = statistics.stdev(baseline)              # excludes D, correct

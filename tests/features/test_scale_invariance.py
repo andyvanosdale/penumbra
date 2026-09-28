@@ -16,7 +16,7 @@ import pandas as pd
 
 from harness.features import FEATURE_COLUMNS, build_features
 from harness.store import AsOfReader
-from tests.fixtures.features import build_equity_store, nyse_sessions
+from tests.fixtures.features import all_eligible, build_equity_store, nyse_sessions
 
 N_SESSIONS = 260
 
@@ -51,11 +51,12 @@ def test_scale_invariance_of_every_feature():
     dates = nyse_sessions(N_SESSIONS)
     eval_dates = dates[-5:]
 
+    eligible = all_eligible(["A", "B"], eval_dates)
     reader_1x = _build(1.0, dates)
-    out_1x = build_features(reader_1x, "smallcap", eval_dates)
+    out_1x = build_features(reader_1x, "smallcap", eval_dates, eligible=eligible)
 
     reader_scaled = _build(3.7, dates)
-    out_scaled = build_features(reader_scaled, "smallcap", eval_dates)
+    out_scaled = build_features(reader_scaled, "smallcap", eval_dates, eligible=eligible)
 
     pd.testing.assert_frame_equal(
         out_1x.drop(columns=["ret_per_vol"]).reset_index(drop=True),

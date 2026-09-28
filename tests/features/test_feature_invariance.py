@@ -5,13 +5,18 @@ Issue 18's `harness.testing.invariance.assert_feature_invariance` (PR #27) is
 merged; this calls it directly against `harness.features.build_features` over
 a synthetic store built from `tests/invariance/_synth.py`'s panel generator
 (the same one `tests/invariance/test_feature_invariance.py` uses for its
-reference implementation), replacing the minimal in-test version this PR
-carried before #27 merged.
+reference implementation).
 
-Each sampled D is driven through a fresh in-memory store built from that D's
-own (possibly perturbed) bars/events, so the check exercises the real read
-path — the windowed `panel` read, the `calendar` and `events` reads, and the
-per-symbol rolling computation — not just in-memory arithmetic.
+`compute(bars, events, D)` calls `build_features` over a date range that
+extends *past* D (`D-5 .. D+10`, clamped to what the perturbed frame still
+has), not just `[D]`. Calling it with `dates=[D]` alone would make the panel
+read's own `date <= D` SQL filter the only thing keeping future bars out of
+memory — exactly the shape of a real run, where `build_features` is called
+once per era with `dates = [D_1 .. D_n]` and the panel is read as of `D_n`, so
+bars after every earlier `D_i` are already in memory. `test_windowing.py`
+(the `center=True` mutant, below) is what proves this range actually matters:
+called with `dates=[D]` alone, that mutant would pass invariance trivially,
+because there would be no future data in memory for a leaky window to reach.
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from harness.features import FEATURE_COLUMNS, FLAG_COLUMNS, LANE_MARKET, build_features
+from harness.features import EQUITY_LANES, FEATURE_COLUMNS, FLAG_COLUMNS, LANE_MARKET, build_features
 from harness.store import connect, register_snapshot, upsert
 from harness.store.calendar import calendar_for_lane
 from harness.store.reader import AsOfReader, iso_date
@@ -32,6 +37,11 @@ pytestmark = pytest.mark.leakage
 # Edges of the 20- and 250-day windows the real features use: an off-by-one
 # leak is most likely to show up right at a window boundary.
 _WINDOW_EDGE_INDICES = (19, 20, 21, 249, 250, 251)
+
+# How far past (and before) D each `compute` call asks build_features for, so
+# the in-memory panel actually holds bars after D, the way a real run's
+# multi-date call would.
+_DATES_BEFORE, _DATES_AFTER = 5, 10
 
 
 def _build_store(lane: str, symbol: str, bars: pd.DataFrame,
@@ -79,11 +89,26 @@ def _build_store(lane: str, symbol: str, bars: pd.DataFrame,
     return AsOfReader(conn, snapshot_id)
 
 
+def _dates_window(bars: pd.DataFrame, D) -> list[str]:
+    """`D-5 .. D+10` (clamped), in whatever dates `bars` still has after a
+    perturbation — so the panel `build_features` reads genuinely extends past
+    D, the way a real multi-date call's does."""
+
+    dates = sorted(bars["date"].unique())
+    idx = dates.index(D)
+    lo = max(0, idx - _DATES_BEFORE)
+    hi = min(len(dates), idx + _DATES_AFTER + 1)
+    return [iso_date(d) for d in dates[lo:hi]]
+
+
 def _compute(lane: str, symbol: str):
     def compute(bars: pd.DataFrame, events: pd.DataFrame | None, D) -> dict:
         reader = _build_store(lane, symbol, bars, events, snapshot_id="inv")
-        out = build_features(reader, lane, [iso_date(D)], symbols=[symbol])
-        row = out.iloc[0]
+        window_dates = _dates_window(bars, D)
+        eligible = (pd.DataFrame({"date": window_dates, "symbol": [symbol] * len(window_dates)})
+                   if lane in EQUITY_LANES else None)
+        out = build_features(reader, lane, window_dates, symbols=[symbol], eligible=eligible)
+        row = out.loc[out["date"] == iso_date(D)].iloc[0]
         return {col: row[col] for col in (*FEATURE_COLUMNS, *FLAG_COLUMNS)}
     return compute
 
@@ -104,5 +129,34 @@ def test_build_features_is_invariant_to_data_after_D(panel):
     for name in panel:
         rng = np.random.default_rng(hash((name.lane, name.symbol)) % (2**32))
         samples = _samples_for(name.bars, rng)
+        assert_feature_invariance(_compute(name.lane, name.symbol), name.bars, name.events,
+                                  samples, rng)
+
+
+def _center_roll(s: pd.Series, window: int, how: str, ddof: int = 1) -> pd.Series:
+    """A `_roll` mutant using a centered window — the acceptance-criteria bug
+    this invariance check must catch: a centered window at D reaches into
+    bars dated after D."""
+
+    r = s.rolling(window, center=True)
+    if how == "mean":
+        val = r.mean()
+    elif how == "std":
+        val = r.std(ddof=ddof)
+    elif how == "min":
+        val = r.min()
+    elif how == "max":
+        val = r.max()
+    else:
+        raise ValueError(how)
+    return val.where(r.count() == window)
+
+
+def test_center_window_mutant_fails_invariance(panel, monkeypatch):
+    name = next(n for n in panel if n.lane == "smallcap")
+    monkeypatch.setattr("harness.features._roll", _center_roll)
+    rng = np.random.default_rng(123)
+    samples = _samples_for(name.bars, rng)
+    with pytest.raises(AssertionError, match="perturbation"):
         assert_feature_invariance(_compute(name.lane, name.symbol), name.bars, name.events,
                                   samples, rng)

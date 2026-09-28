@@ -89,22 +89,22 @@ parallel. `build_features` takes it as `eligible`: a DataFrame with `date` and
 `AsOfReader.lane_membership(...)` already returns, so the universe builder's
 output can be passed through directly once it exists).
 
-When `eligible` is omitted (`None`), the builder falls back to "every symbol
-with a valid (non-`NaN`) simple return on D" as the eligible set — a local
-stand-in, **not** the spec/01 screen, since issue 6 is not merged yet. This is
-flagged in the PR description; switch callers to the real universe as soon as
-issue 6 lands. The fallback only affects `sector_rel_ret_1`; every other
-feature is unaffected by `eligible`.
+`eligible` is **required** for `smallcap`/`discovered` — `build_features`
+raises `FeatureError` if it is `None`. There is no silent fallback: a
+committed run that forgot to pass the real universe would otherwise get a
+non-spec `sector_rel_ret_1` (averaged over every name with a return that day)
+with no error. Tests that don't care about the eligibility screen pass an
+"everyone is eligible" frame (`tests/fixtures/features.all_eligible`). `crypto`
+never needs it — it has no `sector_rel_ret_1`.
 
 "Eligible" gates who is *averaged* into the sector peer group, not whether a
 name gets a `sector_rel_ret_1` value at all: a name outside the eligible set
-(e.g. `discovered`-only names, or any name when `eligible` is omitted for a
-symbol the fallback excludes) still gets a value, computed against its
-eligible peers; it is excluded from the average only when it is itself one of
-them. This reads the spec's "excluding the name itself" as describing which
-name to drop from an otherwise eligible-only average, not as a precondition
-that the name itself must be eligible — flagged for the PA alongside the
-`eligible` stand-in above, since neither is a locked parameter.
+(e.g. a `discovered`-only name that isn't in `smallcap`'s eligible frame)
+still gets a value, computed against its eligible peers; it is excluded from
+the average only when it is itself one of them. This reads the spec's
+"excluding the name itself" as describing which name to drop from an
+otherwise eligible-only average, not as a precondition that the name itself
+must be eligible — flagged for the PA, since it isn't a locked parameter.
 
 ## Lookback and history requirements
 
@@ -115,17 +115,36 @@ history in the store is not an error: `vol_pctl_250` and `dist_52w_low` are
 simply `NaN` at every D where the window isn't full, consistent with the
 missing-bar rule above.
 
-`VOL_PCTL_WINDOW` and `DIST_52W_WINDOW` are both `config.params.SPEC01.equities_full_history_days`
-(250) rather than a second `250` literal: it is the same number spec/01 fixes
-as the equity full-history requirement, chosen precisely so that an eligible
-equity's feature windows are always full (spec/01 Eligibility, "so every
-feature window is full"). `config/params.py` has no locked constant for the
-20-day feature windows or for the sqrt(252)/sqrt(365) annualization — those
-20s in spec/01/06/07 govern unrelated things (the liquidity/vol floors, the
-cost spread window, the regime-split window), not this table — so
-`RVOL_WINDOW`, `ZSCORE_WINDOW`, `DD_20D_WINDOW`, `RANGE_REL_WINDOW` and
-`ANNUALIZATION` stay as `harness/features.py`'s own constants, read directly
-off spec/04's table.
+Window constants are read from `config/params.py` wherever the same locked
+number already lives there, rather than duplicated as a second literal:
+
+- `VOL_PCTL_WINDOW` and `DIST_52W_WINDOW` are `config.params.SPEC01.equities_full_history_days`
+  (250): the equity full-history requirement, chosen precisely so that an
+  eligible equity's feature windows are always full (spec/01 Eligibility, "so
+  every feature window is full").
+- `RVOL_WINDOW` is `config.params.SPEC01.vol_floor_window_days` (20): spec/01's
+  equities vol-floor window is "20-day annualized realized vol" — the same
+  computation as `rvol_20`. `rvol_20` is a fixed 20 for every lane (crypto's
+  own vol floor uses a 30-day window in spec/01, but that doesn't change
+  spec/04's `rvol_20`).
+- `ZSCORE_WINDOW` is `config.params.SPEC05.target_window_days` (20): the
+  strategy's target level is "the 20-day mean close as of D, fixed", and
+  `spec/DECISIONS.md` ("Candidate is a one-day shock, not a band position")
+  says `zscore_20` "stays ... as the target's mean" — one window shared by
+  design between the feature and the target.
+- `DD_20D_WINDOW` and `RANGE_REL_WINDOW` have no matching locked parameter
+  anywhere in `config/params.py` (they're spec/04's own 20-day windows for
+  `dd_from_20d_high` and `range_rel_20`), so they stay local, read directly
+  off spec/04's table. The sqrt(252)/sqrt(365) annualization constants
+  likewise have no locked-parameter match and stay local.
+
+`vol_pctl_250`'s rolling midrank (`_midrank_pctl`) is vectorized with
+`numpy.lib.stride_tricks.sliding_window_view` rather than a per-window Python
+callback, since it's the one feature whose 250-session window makes that
+callback the dominant cost of a call over a real universe: measured at
+~1.97s for 1,000 synthetic names × 2,750 sessions, versus ~21.6s for the
+naive `rolling(250).apply(...)` version on the same input (see the PR
+description).
 
 ## Testing
 
@@ -136,7 +155,8 @@ off spec/04's table.
   `test_sector_rel_ret_1.py`, `test_filing_2d.py`), each computing its expected
   value independently of `harness/features.py` (plain arithmetic, `math.log`,
   `statistics.stdev`, or hand-worked fractions), never by re-deriving it with the
-  same rolling code under test.
+  same rolling code under test. `test_sector_rel_ret_1.py` also has
+  `test_eligible_is_required_for_equity_lanes`, confirming the `FeatureError`.
   - `test_shock_uses_the_window_ending_D_minus_1_not_D` is the fixture the issue
     requires: a real, non-zero baseline volatility over the 20 days before D,
     then a large one-day move on D. It asserts the correct value (using the
@@ -156,7 +176,13 @@ off spec/04's table.
   `tests/invariance/_synth.py`'s panel generator (the same generator issue
   18's own reference-feature tests use). Every value `build_features` gives at
   D must be unchanged when the data dated after D is deleted, scaled,
-  shock-scaled or shuffled (spec/02 Leakage tests, second bullet).
+  shock-scaled or shuffled (spec/02 Leakage tests, second bullet). Each call
+  asks `build_features` for a date range extending from D-5 to D+10 (clamped),
+  not just `[D]`, so the panel actually holds bars after D in memory — the
+  same shape a real run's multi-date call has, and the case a centered or
+  off-by-one window would leak through. `test_center_window_mutant_fails_invariance`
+  proves the check has that power: it monkeypatches `_roll` to use a centered
+  window and asserts `assert_feature_invariance` catches it.
 - `test_crypto_lane.py`: the same `ret_1`/`rvol_20_prev` check on the `crypto`
   lane, to exercise the `utc` calendar (every day is a session) and the
   sqrt(365) annualization independently of the equity-lane tests.
