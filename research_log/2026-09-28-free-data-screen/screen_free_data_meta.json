@@ -1,0 +1,413 @@
+{
+  "spec_commit": "b1616412",
+  "markets": {
+    "equity": {
+      "list_size": 4887,
+      "tickers_without_yf_data_2015_2023": 721,
+      "tickers_with_prices": 4166,
+      "sessions": 2264,
+      "first_session": "2015-01-02",
+      "last_session": "2023-12-29",
+      "tickers_with_cap": 4165,
+      "tickers_under_cap": 2465,
+      "cap_source_counts": {
+        "screener": 4761,
+        "yfinance": 126
+      },
+      "universe_smallcap": {
+        "median_daily_universe": 332.0,
+        "p10": 0.0,
+        "p90": 809.0,
+        "sessions": 2264,
+        "names_ever": 2040
+      },
+      "universe_uncapped": {
+        "median_daily_universe": 642.0,
+        "p10": 0.0,
+        "p90": 1536.0,
+        "sessions": 2264,
+        "names_ever": 3685
+      }
+    },
+    "crypto": {
+      "usdt_symbols_in_bucket": 418,
+      "symbols_after_exclusions": 354,
+      "days": 1826,
+      "first_day": "2018-01-01",
+      "last_day": "2022-12-31",
+      "next_open_source": "1h kline open at 01:00 UTC on D+1",
+      "o1_coverage_of_universe_cells": 0.9998048871857708,
+      "universe": {
+        "median_daily_universe": 100.0,
+        "p10": 12.0,
+        "p90": 100.0,
+        "sessions": 1826,
+        "names_ever": 316
+      }
+    }
+  },
+  "runs": {
+    "equity": {
+      "run_at": "2026-09-28T01:32:20.956540+00:00",
+      "runtime_s": 69
+    },
+    "crypto": {
+      "run_at": "2026-09-28T01:32:22.488778+00:00",
+      "runtime_s": 2
+    }
+  },
+  "diagnostics": {
+    "equity_smallcap": {
+      "market": "equity",
+      "universe": "smallcap",
+      "fill": "next_open",
+      "cost": 0,
+      "trades": 27107,
+      "entry_days": 1962,
+      "mean_shock": -3.6929684248249703,
+      "gross_p01": -0.3399851427510749,
+      "gross_p99": 0.37128114999827533,
+      "gross_min": -0.9197080291970803,
+      "gross_max": 7.1834064275428915,
+      "mean_gross": -0.006458017456896277,
+      "mean_gross_winsorized_1_99": -0.007412525778290001,
+      "mean_fwd5_candidates": -0.005207848199950182,
+      "mean_fwd5_universe": -0.004060055820128145,
+      "top10_days_share_of_abs_pnl": 0.07310922032580333,
+      "z_net_without_top10_days": -2.547337496083883,
+      "z_fwd5_without_top10_days": -2.7901368968764544,
+      "planted_50bps_z_net": 1.0635402825788334,
+      "planted_50bps_z_fwd5": 1.2918975250787994,
+      "placebo_lag20_trades": 29899,
+      "placebo_lag20_days": 1965,
+      "placebo_lag20_mean_net_minus_bench": -0.00048432695538254227,
+      "placebo_lag20_z_net": -0.3086698100716853,
+      "placebo_lag20_fwd5_excess": 0.00023445471187783342,
+      "placebo_lag20_z_fwd5": 0.8968634280358705,
+      "largest_gross": [
+        {
+          "signal_date": "2021-03-04 00:00:00",
+          "ticker": "VANI",
+          "entry": 6.869999885559082,
+          "exit_px": 56.220001220703125,
+          "exit_type": "target",
+          "gross": 7.1834064275428915
+        },
+        {
+          "signal_date": "2021-04-22 00:00:00",
+          "ticker": "PRPO",
+          "entry": 35.79999923706055,
+          "exit_px": 128.0,
+          "exit_type": "target",
+          "gross": 2.5754190706097284
+        },
+        {
+          "signal_date": "2023-11-28 00:00:00",
+          "ticker": "MLGO",
+          "entry": 22560.0,
+          "exit_px": 80100.0,
+          "exit_type": "target",
+          "gross": 2.550531914893617
+        },
+        {
+          "signal_date": "2017-12-22 00:00:00",
+          "ticker": "WATT",
+          "entry": 5250.0,
+          "exit_px": 17148.0,
+          "exit_type": "target",
+          "gross": 2.2662857142857145
+        },
+        {
+          "signal_date": "2023-07-18 00:00:00",
+          "ticker": "PSQH",
+          "entry": 144.89999389648438,
+          "exit_px": 446.8500061035156,
+          "exit_type": "target",
+          "gross": 2.083851103698061
+        }
+      ],
+      "smallest_gross": [
+        {
+          "signal_date": "2018-09-07 00:00:00",
+          "ticker": "IMUX",
+          "entry": 2740.0,
+          "exit_px": 220.0,
+          "exit_type": "stop",
+          "gross": -0.9197080291970803
+        },
+        {
+          "signal_date": "2019-05-24 00:00:00",
+          "ticker": "IFRX",
+          "entry": 35.34000015258789,
+          "exit_px": 4.25,
+          "exit_type": "stop",
+          "gross": -0.8797396722792945
+        },
+        {
+          "signal_date": "2023-11-09 00:00:00",
+          "ticker": "ACRS",
+          "entry": 4.849999904632568,
+          "exit_px": 0.699999988079071,
+          "exit_type": "stop",
+          "gross": -0.8556701027126923
+        },
+        {
+          "signal_date": "2023-07-10 00:00:00",
+          "ticker": "MRT",
+          "entry": 8.6899995803833,
+          "exit_px": 1.319000244140625,
+          "exit_type": "stop",
+          "gross": -0.8482163051977447
+        },
+        {
+          "signal_date": "2019-11-13 00:00:00",
+          "ticker": "ACET",
+          "entry": 929.5999755859375,
+          "exit_px": 181.44000244140625,
+          "exit_type": "stop",
+          "gross": -0.8048192693561093
+        }
+      ],
+      "mean_sessions_held": 6.943852141513262,
+      "unfilled_reasons": {
+        "held": 4810,
+        "zero_range": 10
+      }
+    },
+    "equity_uncapped": {
+      "market": "equity",
+      "universe": "uncapped",
+      "fill": "next_open",
+      "cost": 0,
+      "trades": 50570,
+      "entry_days": 1996,
+      "mean_shock": -3.6844325988806985,
+      "gross_p01": -0.31236357542264404,
+      "gross_p99": 0.35854513152196404,
+      "gross_min": -0.9197080291970803,
+      "gross_max": 7.1834064275428915,
+      "mean_gross": -0.003853911423411095,
+      "mean_gross_winsorized_1_99": -0.004655622098616322,
+      "mean_fwd5_candidates": -0.003960458430271529,
+      "mean_fwd5_universe": -0.004723431907681149,
+      "top10_days_share_of_abs_pnl": 0.12620508655213236,
+      "z_net_without_top10_days": -2.072377072092697,
+      "z_fwd5_without_top10_days": -1.8341033842975327,
+      "planted_50bps_z_net": 2.467614903650965,
+      "planted_50bps_z_fwd5": 3.286560935229817,
+      "placebo_lag20_trades": 56120,
+      "placebo_lag20_days": 1996,
+      "placebo_lag20_mean_net_minus_bench": 0.00014824047088611748,
+      "placebo_lag20_z_net": -0.1347737976316325,
+      "placebo_lag20_fwd5_excess": 0.0005678622824384894,
+      "placebo_lag20_z_fwd5": 1.0368226810131977,
+      "largest_gross": [
+        {
+          "signal_date": "2021-03-04 00:00:00",
+          "ticker": "VANI",
+          "entry": 6.869999885559082,
+          "exit_px": 56.220001220703125,
+          "exit_type": "target",
+          "gross": 7.1834064275428915
+        },
+        {
+          "signal_date": "2021-04-22 00:00:00",
+          "ticker": "PRPO",
+          "entry": 35.79999923706055,
+          "exit_px": 128.0,
+          "exit_type": "target",
+          "gross": 2.5754190706097284
+        },
+        {
+          "signal_date": "2023-11-28 00:00:00",
+          "ticker": "MLGO",
+          "entry": 22560.0,
+          "exit_px": 80100.0,
+          "exit_type": "target",
+          "gross": 2.550531914893617
+        },
+        {
+          "signal_date": "2017-12-22 00:00:00",
+          "ticker": "WATT",
+          "entry": 5250.0,
+          "exit_px": 17148.0,
+          "exit_type": "target",
+          "gross": 2.2662857142857145
+        },
+        {
+          "signal_date": "2022-12-05 00:00:00",
+          "ticker": "MDGL",
+          "entry": 71.5,
+          "exit_px": 233.2100067138672,
+          "exit_type": "target",
+          "gross": 2.261678415578562
+        }
+      ],
+      "smallest_gross": [
+        {
+          "signal_date": "2018-09-07 00:00:00",
+          "ticker": "IMUX",
+          "entry": 2740.0,
+          "exit_px": 220.0,
+          "exit_type": "stop",
+          "gross": -0.9197080291970803
+        },
+        {
+          "signal_date": "2019-05-24 00:00:00",
+          "ticker": "IFRX",
+          "entry": 35.34000015258789,
+          "exit_px": 4.25,
+          "exit_type": "stop",
+          "gross": -0.8797396722792945
+        },
+        {
+          "signal_date": "2023-11-09 00:00:00",
+          "ticker": "ACRS",
+          "entry": 4.849999904632568,
+          "exit_px": 0.699999988079071,
+          "exit_type": "stop",
+          "gross": -0.8556701027126923
+        },
+        {
+          "signal_date": "2023-07-10 00:00:00",
+          "ticker": "MRT",
+          "entry": 8.6899995803833,
+          "exit_px": 1.319000244140625,
+          "exit_type": "stop",
+          "gross": -0.8482163051977447
+        },
+        {
+          "signal_date": "2019-11-13 00:00:00",
+          "ticker": "ACET",
+          "entry": 929.5999755859375,
+          "exit_px": 181.44000244140625,
+          "exit_type": "stop",
+          "gross": -0.8048192693561093
+        }
+      ],
+      "mean_sessions_held": 6.8169468064069605,
+      "unfilled_reasons": {
+        "held": 8632,
+        "zero_range": 11
+      }
+    },
+    "crypto_top100": {
+      "market": "crypto",
+      "universe": "top100",
+      "fill": "next_open",
+      "cost": 0,
+      "trades": 3532,
+      "entry_days": 368,
+      "mean_shock": -3.2367821046896235,
+      "gross_p01": -0.4304999986205339,
+      "gross_p99": 0.5212486487325859,
+      "gross_min": -0.999991711991712,
+      "gross_max": 5.243307908895028,
+      "mean_gross": 0.014161675251640322,
+      "mean_gross_winsorized_1_99": 0.011623654516254656,
+      "mean_fwd5_candidates": 0.005589017611267528,
+      "mean_fwd5_universe": 0.010239403850558593,
+      "top10_days_share_of_abs_pnl": 0.2967944820061198,
+      "z_net_without_top10_days": -3.949622050808131,
+      "z_fwd5_without_top10_days": -4.500859238458925,
+      "planted_50bps_z_net": -1.5586826694770273,
+      "planted_50bps_z_fwd5": -2.9458119631824937,
+      "placebo_lag20_trades": 3480,
+      "placebo_lag20_days": 381,
+      "placebo_lag20_mean_net_minus_bench": 0.0023691118139601685,
+      "placebo_lag20_z_net": 0.5660622060057636,
+      "placebo_lag20_fwd5_excess": 0.0005247281728943654,
+      "placebo_lag20_z_fwd5": -0.17162281302316054,
+      "largest_gross": [
+        {
+          "signal_date": "2021-01-27 00:00:00",
+          "ticker": "DOGEUSDT",
+          "entry": 0.0075649,
+          "exit_px": 0.04723,
+          "exit_type": "target",
+          "gross": 5.243307908895028
+        },
+        {
+          "signal_date": "2020-11-07 00:00:00",
+          "ticker": "CVCUSDT",
+          "entry": 0.04077,
+          "exit_px": 0.15808,
+          "exit_type": "target",
+          "gross": 2.8773608045131223
+        },
+        {
+          "signal_date": "2022-05-11 00:00:00",
+          "ticker": "PEOPLEUSDT",
+          "entry": 0.0146,
+          "exit_px": 0.0299,
+          "exit_type": "time",
+          "gross": 1.047945205479452
+        },
+        {
+          "signal_date": "2022-11-13 00:00:00",
+          "ticker": "SRMUSDT",
+          "entry": 0.14287,
+          "exit_px": 0.28532,
+          "exit_type": "time",
+          "gross": 0.9970602645761883
+        },
+        {
+          "signal_date": "2020-03-12 00:00:00",
+          "ticker": "MCOUSDT",
+          "entry": 2.47,
+          "exit_px": 4.85,
+          "exit_type": "time",
+          "gross": 0.963562753036437
+        }
+      ],
+      "smallest_gross": [
+        {
+          "signal_date": "2022-05-09 00:00:00",
+          "ticker": "LUNAUSDT",
+          "entry": 38.61,
+          "exit_px": 0.00032,
+          "exit_type": "truncated",
+          "gross": -0.999991711991712
+        },
+        {
+          "signal_date": "2022-05-09 00:00:00",
+          "ticker": "ANCUSDT",
+          "entry": 0.908,
+          "exit_px": 0.0841,
+          "exit_type": "time",
+          "gross": -0.9073788546255507
+        },
+        {
+          "signal_date": "2022-11-08 00:00:00",
+          "ticker": "FTTUSDT",
+          "entry": 5.922,
+          "exit_px": 1.4322,
+          "exit_type": "truncated",
+          "gross": -0.7581560283687944
+        },
+        {
+          "signal_date": "2021-05-17 00:00:00",
+          "ticker": "XVSUSDT",
+          "entry": 85.26,
+          "exit_px": 22.784999999999997,
+          "exit_type": "stop",
+          "gross": -0.7327586206896552
+        },
+        {
+          "signal_date": "2022-05-09 00:00:00",
+          "ticker": "PEOPLEUSDT",
+          "entry": 0.0291,
+          "exit_px": 0.012900000000000005,
+          "exit_type": "stop",
+          "gross": -0.5567010309278349
+        }
+      ],
+      "mean_sessions_held": 7.465175537938845,
+      "unfilled_reasons": {
+        "held": 816,
+        "zero_range": 2,
+        "no_bar": 1
+      }
+    }
+  }
+}

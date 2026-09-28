@@ -225,6 +225,32 @@ Each is replaced by the spec-built module that owns it, and `legacy/` stays froz
 apart from issue 2's configuration change. Once the spec harness can run the
 day-of-week dummy through its own pipeline, `legacy/` is deleted.
 
+## Status: v1 rule paused (2026-09-28)
+
+The pre-build screen (issue 15; `research_log/2026-09-28-free-data-screen.md`) came
+back null in every lane against its pre-registered threshold. The equity build for
+the v1 rule has stopped, no Sharadar data will be bought for it, and the crypto lane
+is being removed by spec change. The owner is choosing the next strategy, through
+the PM.
+
+- **What stays.** These are strategy-agnostic and are kept and maintained: the fetcher, the store, configuration, eras, the run record, the invariance machinery and leakage gate, and the store availability invariant.
+- **What finishes.** The in-flight pieces (issue 3+5 loader, 6 universe, 7 costs, 8 features, 9 labeler) finish their current review round and merge if clean. They are likely to carry over to the next rule, and they are not extended.
+- **What doesn't start.** No new work begins on issues 4, 10, 11, 12 or 13 until the next strategy is decided.
+- **What continues.** Issue 17's reproduce-from-snapshot and CI/architecture work continue.
+
+### Open items from the screen
+
+1. **Post-shock drift.** Candidates underperform their same-day universe for
+   five sessions after the drop. It is strongest in crypto (day-mean −228 bps,
+   SE 61), and present in `smallcap` (−30 ± 12 bps). That is momentum/continuation,
+   the territory of the slide-cohort momentum epic, not reversion.
+2. **The spread estimator is uncalibrated.** spec/06's Abdi–Ranaldo estimator on
+   daily bars gave a median spread of about 2.35% on 60%-vol names, which is about 4% round trip
+   in equities and 6% in crypto. That is an order of magnitude above plausible
+   quotes. `harness/costs.py` implements it as written, but **no rule may be costed
+   with it until a quoted-spread sample validates it**. The quote hosts the screen
+   tried (Polygon, IEX) are blocked by the environment's egress policy.
+
 ## Build order
 
 ```
@@ -236,6 +262,6 @@ wave 4:             7 costs · 10 strategy + benchmark · 11 evaluator + control
 wave 5:             1 legacy control on real prices (any time after 2 and 17) · 12 dev run · 13 validation run
 ```
 
-Issue 15 (the screen) runs outside this order. A null on the klines removes the
+Superseded by the status section above for issues 4 and 10–13. Issue 15 (the screen) ran outside this order. A null on the klines removes the
 crypto lane by spec change: issue 4 and every crypto branch are dropped. A null on
 equities stops the equity build.
