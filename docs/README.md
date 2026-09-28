@@ -9,6 +9,7 @@ thing documented.
 - `ingest-sharadar.md` — loading Sharadar tables into the store
 - `ingest-binance.md` — loading Binance public data into the store
 - `store.md` — table layout, `available_at` semantics, as-of adjustment, read paths
+- `features.md` — the feature builder: formulas as implemented, window alignment, NaN rules, tie handling, the `eligible` parameter
 - `running.md` — running a backtest, the run record, reproducing from a snapshot, the holdout unlock
 
 Files not yet present are owed by the issue that introduces the component
