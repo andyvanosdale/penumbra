@@ -26,6 +26,14 @@ whitespace, `Decimal` values as strings) of:
 - the lane's era bounds (`config/eras.py`), and
 - the code commit.
 
+Every locked parameter is hashed for every lane, not only the ones that lane's
+own universe rule or cost model reads: spec/03 says "every locked parameter in
+spec/01, spec/05, spec/06 and spec/07" with no lane scoping, and the
+conservative direction is to over-count rather than under-count — a
+crypto-only parameter change bumps the `smallcap` hash too, and the dev-hash
+count below overstates rather than understates how many distinct
+configurations were tried.
+
 `config/params.py` also fixes a reading the spec leaves open: condition 5 of
 the decision rule ("net return positive ... in each half of the era") does not
 say how the era is split. `EvaluationParams.era_half_split` records the
