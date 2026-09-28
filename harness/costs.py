@@ -150,7 +150,15 @@ class CostModel:
         return max(float(SPEC06_EQUITY.spread_floor_pct), tick_floor)
 
     def leg(self, inputs: CostInputs, leg: LegType, order_notional: float) -> LegCost:
-        """The modeled spread, slippage and fee for one leg (spec/06 Costs)."""
+        """The modeled spread, slippage and fee for one leg (spec/06 Costs).
+
+        `multiplier` scales every component uniformly, including a stress
+        case's fixed per-leg bps add-on if one is set. That add-on is only
+        ever nonzero under the `fixed_10bps_per_leg` stress case, and
+        `breakeven_multiple` is used on the base (unstressed) case (spec/06:
+        the breakeven multiple is on modeled costs, stress is reported
+        separately), so in practice the two never combine.
+        """
         p = self._params
         is_entry = leg == "entry"
         entry_mult = float(p.entry_spread_multiplier) if is_entry else 1.0

@@ -11,6 +11,31 @@ result is written (spec/06). This module computes the modeled cost of one leg; i
 has no opinion about when a leg happens or which price it fills at (the strategy
 rule and the labeler decide that).
 
+## Calibration status: unverified
+
+The Abdi-Ranaldo estimator here is implemented exactly as spec/06 states it (two-day
+products of close-to-midrange log distances, negatives zeroed, 20-session mean ending
+D-1, square root, half per side) and matches the reference implementation the
+free-data screen used independently (issue #15;
+`research_log/2026-09-28-free-data-screen.md`). That screen found the estimate runs
+large on real names: a median of 2.35% on the equity screen universe (60% median
+annualized vol) and a mean of 3.4% round trip on candidates after the 2x entry
+multiplier, an order of magnitude above plausible quoted spreads for that vol level;
+crypto runs larger still (mean 6.0% round trip). The 0.25% equity floor rarely binds
+at that vol level (0.02% of candidates in the screen), so it does not mask the effect.
+
+This is consistent with this module's own estimator test
+(`tests/costs/test_estimator.py`): spec/06's negatives-zeroed-before-averaging rule
+biases the mean upward (Jensen's inequality on `max(0, X)`) once daily volatility
+swamps the spread signal, and 60%-vol small-cap names are exactly that regime.
+
+**No rule may be costed with this model until a sample of actually-quoted spreads
+validates it against real quotes.** This is a calibration question, not an
+implementation bug, and is out of this issue's scope to resolve; the estimator is
+not tuned here. Flagged for the PM/PA to decide how to proceed (a different
+estimator, a vol-conditional adjustment, or an empirically-fit floor) before any
+lane's results are read as evidence rather than as a harness smoke test.
+
 ## Interface
 
 - `CostInputs`: everything one leg's cost depends on, all read as of the signal day
