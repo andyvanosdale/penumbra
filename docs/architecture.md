@@ -44,7 +44,7 @@ The labeler's output meets the features only inside the backtester.
 | `harness/store/` | Schema, idempotent writer, as-of reader (single-date and windowed panel), read-time adjustment, lane calendars, bounded oracle reader (`docs/store.md`) | 02 Store, Trading calendars | 16, then 5 | 16 in review; 5 owed |
 | `ingest/sharadar.py` | SEP, TICKERS, ACTIONS, DAILY, EVENTS, SFP (SPY) raw exports → store | 02 | 3 | owed; built against fixtures until a key exists |
 | `ingest/binance.py` | 1d and 1h klines → store; kline-derived listing; timestamp normalization | 02 | 4 | owed; gated on the screen's crypto result |
-| `harness/universe.py` | Per-lane eligibility and screens → `lane_membership` | 01 | 6 | owed |
+| `harness/universe.py` | Per-lane eligibility and screens → `lane_membership` | 01 | 6 | equity lanes (`smallcap`, `discovered`) in review; crypto builder and exclusion list deferred to issue 15's outcome (`docs/universe.md`) |
 | `harness/features.py` | 14 features and `filing_2d`, as-of | 04 | 8 | owed |
 | `harness/labels.py` | Quarantined labeler: exit simulation, realized net exit return, forward returns, ex-post bucket, delisting treatment, era censoring | 04 Labels, 03 Era boundaries, 01 Delisting | 9 (exits with 10) | owed |
 | `harness/costs.py` | Abdi–Ranaldo spread, square-root slippage, fees, stress cases, breakeven multiple | 06 | 7 | owed |
