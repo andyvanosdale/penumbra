@@ -354,7 +354,8 @@ universe.
    > **Rejected.** Loosening any rule after the fact; a stop or exit variant search (the
    > alternative triggers and horizons were reads, and all are worse).
 
-3. Issue 39 comment posted with the headline table and each rule's verdict (link in the PR).
+3. Issue 39 comment posted with the headline table and each rule's verdict:
+   https://github.com/andyvanosdale/penumbra/issues/39#issuecomment-5915664103 (PR #40).
 
 #### Open questions / followups
 
