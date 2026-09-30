@@ -78,6 +78,21 @@ Copy this block for each new experiment. File naming: `research_log/YYYY-MM-DD-s
 
 ---
 
+## 2026-09-30 — Screen 2: post-shock continuation, crypto (issue 39): null; the idea is dropped
+
+**Pre-registered:** 3b3e98d · **code and results:** bef1c1c (branch `screen/continuation-crypto`).
+Short at the 01:00 UTC open after a −2σ drop, fixed 5-session exit, 1.5×-range stop, on the
+USD-M perpetual 2020–2022 with tier costs, spec/06 slippage and funding: mean net short
+excess over the same-day universe **−37 bps** per trade (rule 1: ≥ +50), day-clustered z
+**+0.58** (rule 2: ≥ 2.0), per year +8 / −7 / −79 (rule 3: all positive); placebo z +0.01
+and top-10-day share 30% pass (rules 4, 5). Spot mirror 2018–2022 at tier cost −13 bps,
+negative in three of five years. Issue 15's −228 bps day-mean read is a day-weighting
+effect: the crash days with the most candidates are the days the shorted names rebound.
+Decision per the pre-registration: the continuation idea is dropped for crypto. Full
+entry: `2026-09-30-continuation-crypto.md`; tables in `2026-09-30-continuation-crypto/`.
+
+---
+
 ## 2026-09-28 — Free-data screen of the v1 rule (issue 15): null in every lane
 
 **Pre-registered:** 9a7721e · **code:** 256b98a · **results:** 911d146 (branch `screen/free-data`).
