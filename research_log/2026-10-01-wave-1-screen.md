@@ -334,7 +334,49 @@ prospective rules, under the proposal's wall between hypothesis generation and t
 
 #### Run details
 
-*(filled in as each step is committed; nothing above this line changes)*
+- **Commits.** Pre-registration `af23489`; amendment `cbc3c67`; refactor `6343335` (ledger
+  subcommand on top), amendment code `59c8d43`; the data pull, regression and every result
+  below: the commits named in `research_log.md` and `ledger.md`.
+- **Dataset snapshot date:** 2026-10-01 (all pulls; no host was blocked this time).
+  Equities: Nasdaq Trader `nasdaqlisted.txt` 5,640 rows + `otherlisted.txt`
+  7,659 → 7,127 after exchange / ETF / test filters →
+  5,547 common stock → 4,888 after exclusions (v1: 4,887). yfinance daily
+  bars, `auto_adjust=False`, 2009-01-01 → 2023-12-31, 82 batches of 60, 4 threads, 33 min;
+  724 symbols returned no bar in the window (post-2023 listings and renames), 4,164 did.
+  Market caps: 4,763 from the Nasdaq screener export (`api.nasdaq.com`, reachable
+  today, pulled directly rather than owner-supplied), 125 from yfinance `fast_info`;
+  all current. Crypto: Binance public bucket, monthly 1d klines for every USDT pair with
+  data in 2018-01-01 → 2024-12-31 (539 pairs; 354 after the stablecoin / leveraged /
+  wrapped exclusions in the 2018–2022 window), 1h klines for the 434 pairs that ever
+  enter the top-100 over 2018–2024, 79 min at 12 threads; the 04:00 and 12:00 UTC opens
+  were extracted from the same cached zips (no further download). No bar dated
+  2024-01-01 or later (equities) or 2025-01-01 or later (crypto) was downloaded; the pull
+  functions refuse such an end date.
+- **Survivorship bias.** As pre-registered: the equity list is the 2026-10-01 listing, so
+  every name delisted before today is absent and every cap is today's. The crypto bucket
+  keeps delisted pairs.
+- **Regression (engineering acceptance).** The original script
+  (`experiments/screen_free_data.py`, unchanged) was run on the fresh pull, then the v1
+  rule was run through the new package (`python -m experiments.screen regress`) on the
+  same files and the v1 windows. Result: every cell identical — 240 of 240 rows for
+  `smallcap` + `uncapped` and 90 of 90 for `crypto`, no column differing at 5 × 10⁻⁷
+  (`regress_v1_comparison_{equity,crypto}.json`; tables from both engines in
+  `regress_v1_tables_*.md`). Against the *committed* v1 tables of 2026-09-28: crypto
+  reproduces to the basis point in every cell (5d excess −43.81 / −41.54 / −52.06 bps at
+  the three fills, z −3.67 / −3.73 / −4.40; the bucket is unchanged); equities differ by
+  data drift only (20 columns, `regress_v1_drift_vs_committed.json`): 4,164 tickers with
+  bars instead of 4,166, 2,475 names under USD 2B instead of 2,465 (today's caps),
+  `smallcap` candidates 32,219 vs 31,927, next-open 5d excess −10.8 vs −10.9 bps
+  (`smallcap`) and +6.0 vs +5.9 (`uncapped`), z −2.49 vs −2.49 and −1.56 vs −1.56. The
+  refactor is proven; the wave-1 runs below are the first new numbers read.
+- **Shift tests.** `tests/screen/test_shift.py`: eight signal modules, equities and
+  crypto, through the real panels; `pytest -q` 428 passed.
+- **Compute.** 4 cores / 15 GB. Equity panel 2009–2023: 10.7M rows, 3,774 sessions,
+  4,164 tickers, 58 s to build, cached as parquet (1.4 GB); arrays about 2 min per
+  process. Crypto panel 2018–2024: 3 s. Runtimes per stage below.
+- **Anomalies during run.** The v1 anomalies carry over (split-adjusted price floor,
+  zero-open placeholder bars treated as missing, yfinance ticker `NA`). New: none at the
+  pull. Added here as the runs complete.
 
 #### Results
 

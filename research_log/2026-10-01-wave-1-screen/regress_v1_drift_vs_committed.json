@@ -1,0 +1,31 @@
+{
+  "equity": {
+    "rows": 240,
+    "columns_differing_from_committed_v1": {
+      "candidates": 292.0,
+      "filled": 245.0,
+      "mean_net": 0.0005927484866179002,
+      "median_net": 0.0008413374566620009,
+      "mean_gross": 0.0005927484866178,
+      "hit_rate": 0.003541076487252104,
+      "mean_net_minus_bench": 0.0007703636310825018,
+      "z_net_vs_universe": 0.46196403706561284,
+      "fwd5_excess": 0.0005713420316557985,
+      "fwd5_n": 292.0,
+      "z_fwd5": 0.5012472872144329,
+      "mean_cost": 0.0001871563196444992,
+      "share_stop": 0.002196788340154604,
+      "share_target": 0.002840738993493408,
+      "share_time": 0.0032352331521983135,
+      "share_truncated": 0.0004450665052239001,
+      "daymean_net_minus_bench": 0.0011231927765545033,
+      "se_net": 0.00022509741106610526,
+      "daymean_fwd5_excess": 0.0006941167616308017,
+      "se_fwd5": 0.00014939611292109998
+    }
+  },
+  "crypto": {
+    "rows": 90,
+    "columns_differing_from_committed_v1": {}
+  }
+}
