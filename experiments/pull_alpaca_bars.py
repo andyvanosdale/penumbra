@@ -38,6 +38,13 @@ What it does:
     and two common stocks, then exits; run it before a long pull.
   * Holdout: the end date is capped at 2023-12-31 (spec/03). --allow-holdout
     overrides it; do not use that for the screen.
+  * Commands on an output folder (each exits after printing):
+      --status   per-month table of batches pulled, rows, and whether a pause is set
+      --verify   check every manifest entry's file exists and its sha256 matches;
+                 add --repair to drop bad entries so the next run re-pulls them
+      --pause    set the pause (same as creating OUT/PAUSE); the running pull holds
+                 between batches
+      --resume   clear the pause
   * Pause and resume: Ctrl-C once finishes the batch in flight, writes it, and stops
     cleanly; re-running the same command resumes at the next batch (a second Ctrl-C
     stops at once; the interrupted batch is re-pulled on resume). To hold the pull
@@ -330,6 +337,68 @@ def probe() -> None:
     log("choose --start from the row for the timeframe you will pull; a month with only a handful of bars is not usable history")
 
 
+def read_manifest(out: Path) -> dict[str, dict]:
+    manifest = out / "manifest.jsonl"
+    if not manifest.exists():
+        return {}
+    entries: dict[str, dict] = {}
+    for line in manifest.read_text().splitlines():
+        if line.strip():
+            e = json.loads(line)
+            entries[e["file"]] = e
+    return entries
+
+
+def batches_per_month(out: Path, timeframe: str, entries: dict[str, dict]) -> int:
+    uni = out / "universe" / "common_stock_list.csv"
+    if uni.exists():
+        n = len(pd.read_csv(uni, dtype=str, keep_default_na=False))
+        return (n + BATCH_SYMBOLS - 1) // BATCH_SYMBOLS
+    seen = [e["batch"] for f, e in entries.items() if f.startswith(f"bars/{timeframe}/")]
+    return max(seen) + 1 if seen else 0
+
+
+def status(out: Path, timeframe: str) -> None:
+    entries = read_manifest(out)
+    per = batches_per_month(out, timeframe, entries)
+    by_month: dict[str, list[dict]] = {}
+    for f, e in entries.items():
+        if f.startswith(f"bars/{timeframe}/"):
+            by_month.setdefault(e["month"], []).append(e)
+    if not by_month:
+        log(f"no {timeframe} batches pulled yet under {out}")
+    else:
+        print(f"{'month':8s} {'batches':>10s} {'rows':>14s}")
+        total = 0
+        for ym in sorted(by_month):
+            rows = sum(e["rows"] for e in by_month[ym])
+            total += rows
+            mark = "" if len(by_month[ym]) >= per else "  (partial)"
+            print(f"{ym:8s} {len(by_month[ym]):>4d}/{per:<5d} {rows:>14,}{mark}")
+        print(f"{'total':8s} {len(entries):>10d} {total:>14,}")
+    log("pause is SET (remove with --resume)" if (out / "PAUSE").exists() else "not paused")
+
+
+def verify(out: Path, repair: bool) -> None:
+    entries = read_manifest(out)
+    bad = []
+    for f, e in entries.items():
+        path = out / f
+        if not path.exists():
+            bad.append((f, "missing"))
+        elif sha256(path) != e["sha256"]:
+            bad.append((f, "hash mismatch"))
+    log(f"verified {len(entries)} manifest entries: {len(entries) - len(bad)} good, {len(bad)} bad")
+    for f, why in bad[:50]:
+        print(f"  {why:14s} {f}")
+    if bad and repair:
+        keep = [json.dumps(e) for f, e in entries.items() if f not in {b for b, _ in bad}]
+        (out / "manifest.jsonl").write_text("\n".join(keep) + ("\n" if keep else ""))
+        log(f"manifest repaired: {len(bad)} entries dropped; the next run re-pulls them")
+    elif bad:
+        log("re-run with --verify --repair to drop the bad entries so they are re-pulled")
+
+
 class StopRequested(Exception):
     pass
 
@@ -377,17 +446,28 @@ def run(args: argparse.Namespace) -> None:
     if start > end:
         sys.exit(f"nothing to pull: data begins {first} and the end date is {end}")
     manifest = out / "manifest.jsonl"
-    done = {json.loads(l)["file"] for l in manifest.read_text().splitlines()} if manifest.exists() else set()
+    entries = read_manifest(out)
+    done = set(entries)
     signal.signal(signal.SIGINT, _on_sigint)
     t0 = time.monotonic()
     rows_total = 0
     plan = list(months(start, end))
     log(f"{args.timeframe} bars, {len(symbols)} symbols in {len(batches)} batches, {len(plan)} months, feed=iex -> {out}")
     todo_total = sum(1 for ym, _, _ in plan for bi in range(len(batches)) if f"bars/{args.timeframe}/{ym}/batch_{bi:03d}.parquet" not in done)
+    prev_files = len(plan) * len(batches) - todo_total
+    if prev_files:
+        prev_rows = sum(e["rows"] for f, e in entries.items() if f.startswith(f"bars/{args.timeframe}/"))
+        full = [ym for ym, _, _ in plan if all(f"bars/{args.timeframe}/{ym}/batch_{bi:03d}.parquet" in done for bi in range(len(batches)))]
+        log(f"resuming: {prev_files} of {len(plan) * len(batches)} batch files already pulled ({prev_rows:,} rows), "
+            f"{len(full)} months complete, {todo_total} batches to go; --status lists them")
     done_this_run = 0
     for mi, (ym, m_start, m_end) in enumerate(plan, 1):
         folder = out / "bars" / args.timeframe / ym
         folder.mkdir(parents=True, exist_ok=True)
+        month_prev = sum(1 for bi in range(len(batches)) if f"bars/{args.timeframe}/{ym}/batch_{bi:03d}.parquet" in done)
+        month_done = month_prev
+        if month_prev == len(batches):
+            continue
         for bi, batch in enumerate(batches):
             rel = f"bars/{args.timeframe}/{ym}/batch_{bi:03d}.parquet"
             if rel in done:
@@ -405,16 +485,18 @@ def run(args: argparse.Namespace) -> None:
             df.to_parquet(path, index=False)
             rows_total += len(df)
             done_this_run += 1
+            month_done += 1
             elapsed = time.monotonic() - t0
             eta = (todo_total - done_this_run) * elapsed / done_this_run if done_this_run else 0
-            live(f"{ym} ({mi}/{len(plan)}) batch {bi + 1}/{len(batches)} · {rows_total:,} rows · {c.requests} req · "
+            live(f"{ym} ({mi}/{len(plan)}) batch {month_done}/{len(batches)} · {rows_total:,} new rows · {c.requests} req · "
                  f"{hms(elapsed)} elapsed · ETA {hms(eta)}")
             with manifest.open("a") as f:
                 f.write(json.dumps({"file": rel, "month": ym, "batch": bi, "symbols": [s for s in batch if s not in SKIPPED], "rows": len(df),
                                     "sha256": sha256(path), "pulled_at": datetime.now(timezone.utc).isoformat()}) + "\n")
         elapsed = time.monotonic() - t0
         eta = (todo_total - done_this_run) * elapsed / done_this_run if done_this_run else 0
-        log(f"{ym} done ({mi}/{len(plan)}): {rows_total:,} rows so far, {c.requests} requests, {hms(elapsed)} elapsed, ETA {hms(eta)}")
+        earlier = f", {month_prev} of its batches pulled earlier" if month_prev else ""
+        log(f"{ym} done ({mi}/{len(plan)}): {rows_total:,} new rows this run{earlier}, {c.requests} requests, {hms(elapsed)} elapsed, ETA {hms(eta)}")
     if SKIPPED:
         (out / "universe" / "skipped_symbols.json").write_text(json.dumps(sorted(SKIPPED), indent=2))
         log(f"{len(SKIPPED)} symbols unknown to Alpaca were skipped; list in universe/skipped_symbols.json")
@@ -441,6 +523,11 @@ def main() -> None:
     ap.add_argument("--symbols-file", help="CSV with a `symbol` column; default builds the screen's universe")
     ap.add_argument("--allow-holdout", action="store_true", help="permit end dates in the holdout era (not for the screen)")
     ap.add_argument("--max-minutes", type=float, default=0, help="stop cleanly after this many minutes (0 = no limit)")
+    ap.add_argument("--status", action="store_true", help="print what is already pulled under --out, then exit")
+    ap.add_argument("--verify", action="store_true", help="check every manifest file exists and matches its sha256, then exit")
+    ap.add_argument("--repair", action="store_true", help="with --verify: drop bad manifest entries so they are re-pulled")
+    ap.add_argument("--pause", action="store_true", help="set the pause on the pull running against --out, then exit")
+    ap.add_argument("--resume", action="store_true", help="clear the pause, then exit")
     args = ap.parse_args()
     if args.env_file:
         load_env_file(Path(args.env_file).expanduser())
@@ -449,6 +536,22 @@ def main() -> None:
         return
     if args.probe:
         probe()
+        return
+    out = Path(args.out).expanduser()
+    if args.pause:
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "PAUSE").touch()
+        log(f"pause set: the pull against {out} holds after its current batch; --resume clears it")
+        return
+    if args.resume:
+        (out / "PAUSE").unlink(missing_ok=True)
+        log("pause cleared")
+        return
+    if args.status:
+        status(out, args.timeframe)
+        return
+    if args.verify:
+        verify(out, args.repair)
         return
     run(args)
 
