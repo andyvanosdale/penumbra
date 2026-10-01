@@ -1,0 +1,11 @@
+{
+  "placebo_z_0": -0.3011226133265921,
+  "placebo_mean_net_0": -0.0013327634646140524,
+  "placebo_z_base": -4.648233381633603,
+  "placebo_mean_net_base": -0.004785291376023693,
+  "placebo_trades": 44068,
+  "placebo_days": 2632,
+  "planted_z_0": 8.201786704908555,
+  "actual_z_0": 2.8173713184383167,
+  "planted_shift": 5.384415386470238
+}

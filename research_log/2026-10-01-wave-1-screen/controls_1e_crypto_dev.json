@@ -1,0 +1,10 @@
+{
+  "placebo_z_0": -1.8437061763394385,
+  "placebo_ann_excess_0": -0.33025262431439395,
+  "placebo_z_base": -2.429411574332221,
+  "placebo_ann_excess_base": -0.4352762463616381,
+  "actual_z_0": -0.08247689326307804,
+  "planted_z_0": 1.0256288022872475,
+  "planted_shift": 1.1081056955503255,
+  "placebo_weeks": 254
+}
