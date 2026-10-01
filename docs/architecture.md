@@ -244,6 +244,15 @@ the PM.
 - **What doesn't start.** No new work begins on issues 4, 10, 11, 12 or 13 until the next strategy is decided.
 - **What continues.** Issue 17's reproduce-from-snapshot and CI/architecture work continue.
 
+### Wave 1 of the screening program (2026-10-01)
+
+`research_log/2026-10-01-wave-1-screen.md`, ledger `research_log/ledger.md`: five catalog
+signals (1a–1e), the extreme-movers study and twelve autopsy-derived rules through
+`experiments/screen/`; zero graduates (18 catalog rows `null`, 14 autopsy rows `null`, 4
+`artifact` from survivorship). The v1 rule reproduces through the new engine cell for cell.
+Nothing is built; wave 2 (rank mode on equities) is next, after a rank-mode placebo and a
+power statement are added to the protocol.
+
 ### Open items from the screen
 
 1. **Post-shock drift.** Candidates underperform their same-day universe for

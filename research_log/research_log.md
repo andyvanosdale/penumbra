@@ -78,6 +78,28 @@ Copy this block for each new experiment. File naming: `research_log/YYYY-MM-DD-s
 
 ---
 
+## 2026-10-01 — Wave 1 of the signal-screening program (1a–1e, extreme movers, autopsy to rule): no graduate
+
+**Pre-registered:** af23489 (amendment cbc3c67) · **engine:** 6343335, 59c8d43, f912434 · **data and
+regression:** 07dd1de · **dev tables:** 40eac00 · **autopsy, confirm, ledger, interpretation:** the
+commit after 40eac00 on `screen/wave-1`. Five catalog signals on three universes (plus BTC and ETH
+for 1d), the extreme-movers counts and lifts, and twelve autopsy-derived rules, under the
+proposal's common protocol (next-open fills, flat cost schedule, day-clustered z, placebo and
+planted control, dev 2010–2020 / 2018–2022). Catalog: 18 of 18 ledger rows `null` in dev; no
+confirm run. Post-shock continuation (1a) is gross-positive (+25 bps `smallcap`, +54 bps crypto at
+five sessions, z +3.0 / +3.6) and negative at the base cost schedule; up-shock on volume (1b)
+reverses in equities (−45 / −79 bps, z −3 to −4); slide-cohort (1c) flat in equities, +231 bps net
+on 361 crypto trades (z +2.4, below the counts floor); crypto trend-following (1d) +8 / +16 pp a year
+over buy-and-hold at z +0.3 / +0.5 (the rank-mode bar is underpowered by 10×); cross-sectional
+momentum (1e) −12 pp a year. Autopsy to rule: 14 `null`, 4 `artifact`: long the cheapest and short
+the most expensive price quintile both beat the universe by +330 to +915 bps per quarter in dev and
+confirm with placebos as significant as the signal, the survivorship bias of a current listing made
+visible. Zero graduates; 36 ledger rows; holdout untouched; the equity confirm era was read by the
+four autopsy rows only. Full entry: `2026-10-01-wave-1-screen.md`; files in
+`2026-10-01-wave-1-screen/`; ledger: `ledger.md`.
+
+---
+
 ## 2026-09-30 — Screen 2: post-shock continuation, crypto (issue 39): null; the idea is dropped
 
 **Pre-registered:** 3b3e98d · **code and results:** bef1c1c (branch `screen/continuation-crypto`).
@@ -147,4 +169,17 @@ Every time the holdout era is touched, record it here. Once touched without an e
 
 Running list of hard-won lessons. Add to it whenever you find a bug or a near-miss. Re-read at the start of every new phase.
 
-- (Add lessons here as they accumulate.)
+- (2026-10-01, wave 1) Binance reuses a pair's symbol across token swaps, redenominations and
+  relists (LUNAUSDT 2022-05 jumps 177,400× across an 18-day gap; COCOS, DREP, SUN, VEN, BNX,
+  QUICK, VIDT, BTCST, STRAX likewise). Any forward return longer than a few days on the raw 1d
+  klines is contaminated. The screen's data layer now ends an instrument at a gap of more than
+  three days; anything else that reads the klines must do the same.
+- (2026-10-01, wave 1) The lag-20 stale-signal placebo tests whether a signal is an event. For a
+  persistent characteristic (price level, size, liquidity) the lagged rule is the same basket and
+  the placebo is as significant as the signal. Rank-type rules need a different placebo (random
+  quintile, or a lag longer than the characteristic's persistence) and a power statement next to
+  the z bar: with weekly SEs of 50–70 bps, z ≥ 3 over 260 weeks needs an 80–100 pp annual edge.
+- (2026-10-01, wave 1) On a current-listing equity sample, a quarter-horizon price-sorted
+  portfolio shows an 18 pp a year "premium" in both eras with every control that can pass
+  passing. It is the survivorship bias, not an edge; no long, slow, cheap-name equity rule can be
+  decided on free data.

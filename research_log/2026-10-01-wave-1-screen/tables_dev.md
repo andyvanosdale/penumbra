@@ -610,6 +610,774 @@ Fill comparison (decision horizon, zero cost / base):
 
 Controls: placebo (lag 20) z @0 +0.64, @base -0.87 on 11720 trades; planted +50 bps z +1.41 vs actual -0.76 (shift +2.17).
 
+**a2r-down-close / smallcap / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `close` (top quintile, selection lift 2.24): match rate 20.3% of the universe per day; 28 of 3834 trades made the original 63-session move (0.73%) against a universe base rate of 0.24% (realized lift 2.99).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 140565 | 127966 | 3834 | 1878 | +577 | +553 | +530 | +483 | +31 | 0.622 | +502 | +72 | +7.00 | 6.2% | +9.83 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 3834 | +19 | +1.85 | -28 | -2.62 |
+| 5 | 3834 | +87 | +4.13 | +40 | +1.76 |
+| 21 | 3834 | +204 | +5.05 | +157 | +3.87 |
+| 63 * | 3834 | +577 | +7.67 | +530 | +7.00 |
+| 126 | 3658 | +1002 | +10.14 | +955 | +9.62 |
+| 252 | 3200 | +1679 | +12.16 | +1632 | +11.80 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 290 | 144 | +391 | +1.48 |
+| 2011 | 329 | 160 | +300 | +2.27 |
+| 2012 | 218 | 144 | +242 | +1.40 |
+| 2013 | 208 | 143 | +519 | +2.41 |
+| 2014 | 261 | 159 | +589 | +2.33 |
+| 2015 | 294 | 167 | +543 | +3.58 |
+| 2016 | 365 | 189 | +819 | +5.35 |
+| 2017 | 340 | 187 | +444 | +0.70 |
+| 2018 | 434 | 205 | +676 | +4.21 |
+| 2019 | 461 | 207 | +463 | +0.79 |
+| 2020 | 634 | 173 | +614 | +2.85 |
+| half1 | 1435 | 835 | +431 | +5.38 |
+| half2 | 2399 | 1043 | +589 | +4.83 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 3884 | +582 | +9.75 | +535 |
+| next_open | 3834 | +577 | +7.67 | +530 |
+| next_close | 3834 | +565 | +7.40 | +518 |
+
+Controls: placebo (lag 20) z @0 +7.95, @base +7.37 on 2729 trades; planted +50 bps z +8.36 vs actual +7.67 (shift +0.70).
+
+**a2r-down-close / uncapped / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `close` (top quintile, selection lift 2.24): match rate 20.2% of the universe per day; 31 of 8908 trades made the original 63-session move (0.35%) against a universe base rate of 0.18% (realized lift 1.95).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 277825 | 252808 | 8908 | 2389 | +366 | +349 | +333 | +299 | -16 | 0.577 | +352 | +45 | +7.88 | 4.7% | +9.36 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 8908 | +13 | +2.21 | -21 | -3.52 |
+| 5 | 8908 | +43 | +4.41 | +9 | +1.48 |
+| 21 | 8908 | +122 | +6.41 | +88 | +4.88 |
+| 63 * | 8908 | +366 | +8.70 | +333 | +7.88 |
+| 126 | 8525 | +617 | +10.44 | +583 | +9.87 |
+| 252 | 7390 | +1109 | +15.63 | +1074 | +15.20 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 804 | 210 | +242 | +3.46 |
+| 2011 | 929 | 216 | +148 | +2.03 |
+| 2012 | 506 | 196 | +213 | +2.81 |
+| 2013 | 441 | 211 | +552 | +2.29 |
+| 2014 | 514 | 208 | +414 | +2.23 |
+| 2015 | 659 | 228 | +195 | +3.04 |
+| 2016 | 900 | 233 | +635 | +6.23 |
+| 2017 | 662 | 229 | +279 | +0.35 |
+| 2018 | 996 | 236 | +357 | +4.15 |
+| 2019 | 979 | 239 | +227 | +1.41 |
+| 2020 | 1518 | 183 | +398 | +3.50 |
+| half1 | 3445 | 1149 | +288 | +5.90 |
+| half2 | 5463 | 1240 | +361 | +5.32 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 9006 | +367 | +11.10 | +333 |
+| next_open | 8908 | +366 | +8.70 | +333 |
+| next_close | 8908 | +361 | +8.32 | +328 |
+
+Controls: placebo (lag 20) z @0 +9.12, @base +8.44 on 5240 trades; planted +50 bps z +9.82 vs actual +8.70 (shift +1.12).
+
+**a2r-down-ret_20 / smallcap / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `ret_20` (top quintile, selection lift 2.14): match rate 20.3% of the universe per day; 34 of 9495 trades made the original 63-session move (0.36%) against a universe base rate of 0.24% (realized lift 1.46).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 140574 | 122313 | 9495 | 2535 | +69 | +44 | +20 | -30 | -453 | 0.558 | -53 | +42 | -1.25 | 5.9% | -0.98 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 9495 | +3 | -0.40 | -47 | -7.64 |
+| 5 | 9495 | +21 | +0.73 | -28 | -3.03 |
+| 21 | 9495 | +27 | +0.79 | -22 | -1.27 |
+| 63 * | 9495 | +69 | -0.05 | +20 | -1.25 |
+| 126 | 9006 | +44 | -1.24 | -5 | -2.00 |
+| 252 | 7820 | -21 | -0.74 | -70 | -1.14 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 722 | 228 | -124 | -1.09 |
+| 2011 | 816 | 235 | -41 | -1.46 |
+| 2012 | 503 | 213 | -169 | -0.99 |
+| 2013 | 470 | 216 | -134 | -0.70 |
+| 2014 | 643 | 227 | -91 | -1.37 |
+| 2015 | 774 | 243 | -3 | +0.22 |
+| 2016 | 876 | 242 | +191 | +2.09 |
+| 2017 | 811 | 243 | +4 | +0.08 |
+| 2018 | 1075 | 248 | +103 | +0.47 |
+| 2019 | 1130 | 251 | +3 | -0.27 |
+| 2020 | 1675 | 189 | +140 | -0.90 |
+| half1 | 3475 | 1237 | -89 | -2.18 |
+| half2 | 6020 | 1298 | +82 | +0.39 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 9575 | +68 | +0.29 | +19 |
+| next_open | 9495 | +69 | -0.05 | +20 |
+| next_close | 9495 | +56 | -0.31 | +7 |
+
+Controls: placebo (lag 20) z @0 +0.49, @base -0.40 on 6600 trades; planted +50 bps z +1.14 vs actual -0.05 (shift +1.19).
+
+**a2r-down-ret_20 / uncapped / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `ret_20` (top quintile, selection lift 2.14): match rate 20.2% of the universe per day; 42 of 19391 trades made the original 63-session move (0.22%) against a universe base rate of 0.18% (realized lift 1.21).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 277823 | 242323 | 19391 | 2676 | +73 | +53 | +33 | -6 | -368 | 0.552 | -13 | +29 | -0.45 | 6.5% | -0.43 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 19391 | +3 | +0.27 | -37 | -9.83 |
+| 5 | 19391 | +15 | +0.38 | -25 | -4.12 |
+| 21 | 19391 | +23 | +0.68 | -16 | -1.76 |
+| 63 * | 19391 | +73 | +0.98 | +33 | -0.45 |
+| 126 | 18461 | +56 | -0.62 | +17 | -1.54 |
+| 252 | 15734 | -41 | -1.49 | -81 | -1.97 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 1751 | 251 | +0 | +0.34 |
+| 2011 | 2173 | 249 | +44 | -0.96 |
+| 2012 | 1100 | 244 | -32 | -0.55 |
+| 2013 | 874 | 248 | -158 | -1.29 |
+| 2014 | 1166 | 245 | -75 | -0.71 |
+| 2015 | 1476 | 248 | -37 | +0.03 |
+| 2016 | 1813 | 250 | +205 | +2.19 |
+| 2017 | 1331 | 250 | -62 | -0.26 |
+| 2018 | 2041 | 250 | +53 | +0.79 |
+| 2019 | 2009 | 252 | -17 | -0.79 |
+| 2020 | 3657 | 189 | +137 | +0.19 |
+| half1 | 7631 | 1358 | -23 | -1.22 |
+| half2 | 11760 | 1318 | +70 | +0.64 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 19541 | +74 | +1.42 | +34 |
+| next_open | 19391 | +73 | +0.98 | +33 |
+| next_close | 19391 | +65 | +0.58 | +26 |
+
+Controls: placebo (lag 20) z @0 +1.01, @base -0.01 on 12641 trades; planted +50 bps z +2.69 vs actual +0.98 (shift +1.70).
+
+**a2r-down-ret_60 / crypto / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `ret_60` (top quintile, selection lift 3.20): match rate 20.0% of the universe per day; 5 of 929 trades made the original 63-session move (0.54%) against a universe base rate of 0.15% (realized lift 3.60).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @alt80 | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 25248 | 22732 | 929 | 677 | +382 | +342 | +322 | +282 | +302 | -434 | 0.656 | +232 | +431 | +0.54 | 17.7% | +4.04 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 929 | +7 | -0.35 | -53 | -1.43 |
+| 5 | 929 | +8 | -0.69 | -52 | -1.36 |
+| 21 | 929 | +173 | +0.89 | +113 | +0.49 |
+| 63 * | 929 | +382 | +0.68 | +322 | +0.54 |
+| 126 | 872 | +855 | +0.90 | +795 | +0.83 |
+| 252 | 747 | +876 | +1.25 | +816 | +1.21 |
+| i04 | 928 | -44 | -1.79 | -104 | -4.45 |
+| i12 | 929 | -39 | -1.18 | -99 | -3.03 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2018 | 34 | 32 | -427 | -0.96 |
+| 2019 | 106 | 95 | +5 | -0.24 |
+| 2020 | 245 | 180 | +233 | +0.84 |
+| 2021 | 279 | 193 | +580 | +0.15 |
+| 2022 | 265 | 177 | +357 | +0.77 |
+| half1 | 262 | 217 | -79 | -0.09 |
+| half2 | 667 | 460 | +480 | +0.58 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 937 | +398 | +0.55 | +338 |
+| next_open | 929 | +382 | +0.68 | +322 |
+| next_close | 929 | +292 | +0.53 | +232 |
+
+Controls: placebo (lag 20) z @0 -0.83, @base -0.93 on 859 trades; planted +50 bps z +0.79 vs actual +0.68 (shift +0.12).
+
+**a2r-down-rvol_20 / crypto / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `rvol_20` (top quintile, selection lift 3.23): match rate 22.0% of the universe per day; 4 of 1149 trades made the original 63-session move (0.35%) against a universe base rate of 0.15% (realized lift 2.33).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @alt80 | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 27044 | 24187 | 1149 | 821 | +142 | +102 | +82 | +42 | +62 | -806 | 0.694 | -187 | +381 | -0.49 | 18.3% | +1.82 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 1148 | -17 | -0.64 | -77 | -1.84 |
+| 5 | 1149 | -4 | -0.78 | -64 | -1.49 |
+| 21 | 1149 | +131 | +0.08 | +71 | -0.30 |
+| 63 * | 1149 | +142 | -0.33 | +82 | -0.49 |
+| 126 | 1088 | -364 | -1.24 | -424 | -1.29 |
+| 252 | 945 | +2136 | +0.78 | +2076 | +0.75 |
+| i04 | 1144 | -16 | -1.04 | -76 | -5.09 |
+| i12 | 1148 | -31 | -1.45 | -91 | -3.73 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2018 | 45 | 42 | +393 | +1.47 |
+| 2019 | 153 | 124 | +535 | +1.62 |
+| 2020 | 299 | 210 | +53 | -0.37 |
+| 2021 | 363 | 246 | -253 | -0.86 |
+| 2022 | 289 | 199 | +244 | +0.41 |
+| half1 | 344 | 273 | -64 | -0.20 |
+| half2 | 805 | 548 | +144 | -0.45 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 1157 | +158 | +0.05 | +98 |
+| next_open | 1149 | +142 | -0.33 | +82 |
+| next_close | 1149 | +45 | -0.58 | -15 |
+
+Controls: placebo (lag 20) z @0 -0.97, @base -1.12 on 1050 trades; planted +50 bps z -0.20 vs actual -0.33 (shift +0.13).
+
+**a2r-down-rvol_20 / smallcap / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `rvol_20` (top quintile, selection lift 2.21): match rate 20.3% of the universe per day; 29 of 6021 trades made the original 63-session move (0.48%) against a universe base rate of 0.24% (realized lift 1.97).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 140574 | 125787 | 6021 | 2261 | +18 | -8 | -33 | -85 | -653 | 0.571 | +43 | +67 | +0.65 | 7.2% | +2.29 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 6021 | +28 | +2.64 | -24 | -2.46 |
+| 5 | 6021 | +43 | +2.98 | -8 | +0.26 |
+| 21 | 6021 | +63 | +2.06 | +11 | +0.64 |
+| 63 * | 6021 | +18 | +1.44 | -33 | +0.65 |
+| 126 | 5704 | +37 | +1.16 | -15 | +0.59 |
+| 252 | 4901 | +279 | +0.55 | +227 | +0.23 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 435 | 192 | -72 | -1.58 |
+| 2011 | 489 | 206 | +43 | +0.76 |
+| 2012 | 315 | 178 | +12 | +0.48 |
+| 2013 | 304 | 182 | +145 | +0.56 |
+| 2014 | 407 | 198 | +5 | +0.42 |
+| 2015 | 482 | 214 | +239 | +1.72 |
+| 2016 | 522 | 220 | -136 | -0.26 |
+| 2017 | 529 | 213 | +203 | +1.16 |
+| 2018 | 695 | 232 | +219 | +2.31 |
+| 2019 | 723 | 240 | +126 | +0.70 |
+| 2020 | 1120 | 186 | -567 | -1.40 |
+| half1 | 2152 | 1059 | +60 | +0.88 |
+| half2 | 3869 | 1202 | -85 | +0.21 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 6066 | -20 | +1.44 | -71 |
+| next_open | 6021 | +18 | +1.44 | -33 |
+| next_close | 6021 | -24 | +0.99 | -75 |
+
+Controls: placebo (lag 20) z @0 +0.28, @base -0.37 on 4669 trades; planted +50 bps z +2.19 vs actual +1.44 (shift +0.75).
+
+**a2r-down-rvol_20 / uncapped / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `rvol_20` (top quintile, selection lift 2.21): match rate 20.2% of the universe per day; 32 of 11430 trades made the original 63-session move (0.28%) against a universe base rate of 0.18% (realized lift 1.57).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 277822 | 250283 | 11430 | 2543 | -28 | -50 | -72 | -116 | -590 | 0.553 | +8 | +46 | +0.18 | 6.8% | +0.75 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 11430 | +19 | +2.25 | -25 | -4.39 |
+| 5 | 11430 | +38 | +2.15 | -6 | -0.93 |
+| 21 | 11430 | +46 | +2.02 | +2 | +0.20 |
+| 63 * | 11430 | -28 | +1.20 | -72 | +0.18 |
+| 126 | 10908 | -85 | +0.69 | -128 | +0.02 |
+| 252 | 9213 | +67 | +0.88 | +23 | +0.47 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 962 | 228 | +26 | +0.26 |
+| 2011 | 1206 | 239 | +4 | +0.95 |
+| 2012 | 661 | 228 | -0 | +0.06 |
+| 2013 | 540 | 215 | -40 | -0.30 |
+| 2014 | 661 | 219 | +24 | +0.05 |
+| 2015 | 854 | 242 | +86 | +1.82 |
+| 2016 | 1028 | 244 | -156 | -0.57 |
+| 2017 | 830 | 244 | +68 | +0.17 |
+| 2018 | 1242 | 245 | +24 | +0.83 |
+| 2019 | 1229 | 250 | +39 | +0.13 |
+| 2020 | 2217 | 189 | -403 | -1.91 |
+| half1 | 4378 | 1248 | +21 | +0.57 |
+| half2 | 7052 | 1295 | -130 | -0.26 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 11535 | -46 | +0.77 | -90 |
+| next_open | 11430 | -28 | +1.20 | -72 |
+| next_close | 11430 | -52 | +0.71 | -96 |
+
+Controls: placebo (lag 20) z @0 +0.47, @base -0.35 on 8938 trades; planted +50 bps z +2.29 vs actual +1.20 (shift +1.10).
+
+**a2r-down-vol_pctl_250 / crypto / dev — direction short, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `vol_pctl_250` (top quintile, selection lift 3.33): match rate 12.0% of the universe per day; 0 of 1102 trades made the original 63-session move (0.00%) against a universe base rate of 0.15% (realized lift 0.00).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @alt80 | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 18005 | 15444 | 1102 | 722 | +18 | -22 | -42 | -82 | -62 | -705 | 0.644 | -172 | +366 | -0.47 | 17.3% | +2.29 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 1102 | +11 | -0.09 | -49 | -1.42 |
+| 5 | 1102 | -122 | -1.60 | -182 | -2.43 |
+| 21 | 1102 | -216 | -1.49 | -276 | -1.79 |
+| 63 * | 1102 | +18 | -0.31 | -42 | -0.47 |
+| 126 | 1018 | -504 | -0.76 | -564 | -0.81 |
+| 252 | 856 | +422 | +0.45 | +362 | +0.41 |
+| i04 | 1098 | -14 | -1.67 | -74 | -5.75 |
+| i12 | 1102 | -9 | -0.83 | -69 | -3.16 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2018 | 12 | 11 | -886 | -1.39 |
+| 2019 | 90 | 82 | -239 | -1.13 |
+| 2020 | 272 | 188 | +736 | +0.57 |
+| 2021 | 376 | 230 | -532 | -0.87 |
+| 2022 | 352 | 211 | -43 | +0.24 |
+| half1 | 226 | 180 | +10 | -0.73 |
+| half2 | 876 | 542 | -56 | -0.27 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 1117 | +31 | -0.52 | -29 |
+| next_open | 1102 | +18 | -0.31 | -42 |
+| next_close | 1102 | +35 | -0.32 | -25 |
+
+Controls: placebo (lag 20) z @0 +0.28, @base +0.07 on 991 trades; planted +50 bps z -0.17 vs actual -0.31 (shift +0.14).
+
+**a2r-up-close / crypto / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `close` (bottom quintile, selection lift 1.74): match rate 19.0% of the universe per day; 18 of 547 trades made the original 63-session move (3.29%) against a universe base rate of 1.21% (realized lift 2.73).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @alt80 | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 25249 | 23232 | 547 | 454 | +1901 | +1861 | +1841 | +1801 | +1821 | +1096 | 0.356 | +1183 | +806 | +1.47 | 41.8% | -2.45 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 547 | +19 | +0.45 | -41 | -0.73 |
+| 5 | 547 | +41 | +0.05 | -19 | -0.63 |
+| 21 | 547 | +220 | +0.56 | +160 | +0.35 |
+| 63 * | 547 | +1901 | +1.54 | +1841 | +1.47 |
+| 126 | 509 | +5671 | +2.46 | +5611 | +2.43 |
+| 252 | 431 | +13601 | +2.92 | +13541 | +2.91 |
+| i04 | 542 | +23 | +1.15 | -37 | -2.26 |
+| i12 | 547 | +50 | +1.54 | -10 | -0.20 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2018 | 14 | 14 | +646 | +0.96 |
+| 2019 | 58 | 51 | -1060 | -3.14 |
+| 2020 | 147 | 124 | +1178 | +0.48 |
+| 2021 | 174 | 135 | +5279 | +2.16 |
+| 2022 | 154 | 130 | -209 | -1.76 |
+| half1 | 131 | 112 | +341 | +0.05 |
+| half2 | 416 | 342 | +2314 | +1.48 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 553 | +1509 | +1.90 | +1449 |
+| next_open | 547 | +1901 | +1.54 | +1841 |
+| next_close | 547 | +1932 | +1.66 | +1872 |
+
+Controls: placebo (lag 20) z @0 +1.03, @base +0.95 on 472 trades; planted +50 bps z +1.60 vs actual +1.54 (shift +0.06).
+
+**a2r-up-close / smallcap / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `close` (bottom quintile, selection lift 2.82): match rate 19.8% of the universe per day; 4 of 4000 trades made the original 63-session move (0.10%) against a universe base rate of 0.03% (realized lift 3.78).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 137772 | 125072 | 4000 | 1915 | +494 | +467 | +440 | +385 | -9 | 0.485 | +368 | +70 | +5.28 | 7.5% | +4.75 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 4000 | +12 | +0.81 | -43 | -5.20 |
+| 5 | 4000 | +69 | +2.21 | +14 | -0.41 |
+| 21 | 4000 | +176 | +3.93 | +121 | +2.40 |
+| 63 * | 4000 | +494 | +6.08 | +440 | +5.28 |
+| 126 | 3803 | +941 | +6.75 | +886 | +6.28 |
+| 252 | 3267 | +1414 | +7.45 | +1359 | +7.16 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 307 | 152 | +366 | +2.16 |
+| 2011 | 327 | 168 | +188 | +1.71 |
+| 2012 | 223 | 144 | +115 | +0.17 |
+| 2013 | 219 | 149 | +402 | +1.38 |
+| 2014 | 283 | 167 | +345 | +2.20 |
+| 2015 | 335 | 183 | +55 | -0.32 |
+| 2016 | 344 | 186 | +716 | +3.39 |
+| 2017 | 339 | 179 | +281 | +0.64 |
+| 2018 | 434 | 204 | +307 | +1.62 |
+| 2019 | 456 | 207 | +209 | +0.77 |
+| 2020 | 733 | 176 | +1072 | +2.98 |
+| half1 | 1516 | 870 | +253 | +3.11 |
+| half2 | 2484 | 1045 | +554 | +4.30 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 4047 | +504 | +6.30 | +449 |
+| next_open | 4000 | +494 | +6.08 | +440 |
+| next_close | 4000 | +501 | +6.22 | +446 |
+
+Controls: placebo (lag 20) z @0 +6.10, @base +5.42 on 2922 trades; planted +50 bps z +6.80 vs actual +6.08 (shift +0.72).
+
+**a2r-up-close_to_high_250 / smallcap / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `close_to_high_250` (bottom quintile, selection lift 3.46): match rate 19.8% of the universe per day; 6 of 4287 trades made the original 63-session move (0.14%) against a universe base rate of 0.03% (realized lift 5.29).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 137805 | 124816 | 4287 | 1919 | +22 | -3 | -29 | -80 | -626 | 0.426 | -114 | +82 | -1.39 | 7.9% | -3.17 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 4287 | +1 | -0.52 | -50 | -5.05 |
+| 5 | 4287 | -5 | +0.44 | -56 | -1.65 |
+| 21 | 4287 | -65 | -1.23 | -116 | -2.39 |
+| 63 * | 4287 | +22 | -0.75 | -29 | -1.39 |
+| 126 | 4074 | -30 | -1.14 | -81 | -1.59 |
+| 252 | 3477 | -243 | -0.73 | -295 | -0.98 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 345 | 165 | -115 | -0.28 |
+| 2011 | 355 | 172 | -62 | -0.07 |
+| 2012 | 228 | 148 | -50 | -0.14 |
+| 2013 | 226 | 142 | +21 | -0.08 |
+| 2014 | 295 | 167 | -180 | -0.13 |
+| 2015 | 323 | 175 | -195 | -1.76 |
+| 2016 | 354 | 176 | +421 | +1.63 |
+| 2017 | 370 | 180 | -477 | -3.09 |
+| 2018 | 511 | 208 | -380 | -2.08 |
+| 2019 | 470 | 209 | -295 | -1.90 |
+| 2020 | 810 | 177 | +520 | +0.91 |
+| half1 | 1585 | 877 | -86 | -0.71 |
+| half2 | 2702 | 1042 | +5 | -1.19 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 4335 | +42 | -0.75 | -9 |
+| next_open | 4287 | +22 | -0.75 | -29 |
+| next_close | 4287 | +21 | -0.68 | -30 |
+
+Controls: placebo (lag 20) z @0 -0.80, @base -1.45 on 3386 trades; planted +50 bps z -0.14 vs actual -0.75 (shift +0.61).
+
+**a2r-up-close_to_high_250 / uncapped / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `close_to_high_250` (bottom quintile, selection lift 3.46): match rate 19.9% of the universe per day; 7 of 8517 trades made the original 63-session move (0.08%) against a universe base rate of 0.01% (realized lift 5.58).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 275053 | 250491 | 8517 | 2308 | +7 | -14 | -36 | -80 | -541 | 0.439 | -178 | +65 | -2.74 | 7.8% | -4.60 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 8517 | -10 | -1.07 | -54 | -6.42 |
+| 5 | 8517 | -17 | -2.07 | -61 | -4.78 |
+| 21 | 8517 | -59 | -2.48 | -102 | -3.90 |
+| 63 * | 8517 | +7 | -2.02 | -36 | -2.74 |
+| 126 | 8162 | -22 | -3.06 | -66 | -3.57 |
+| 252 | 6796 | -306 | -3.07 | -350 | -3.39 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 814 | 207 | -39 | +0.40 |
+| 2011 | 944 | 232 | -67 | -0.67 |
+| 2012 | 466 | 191 | -81 | -1.95 |
+| 2013 | 398 | 197 | -120 | -1.36 |
+| 2014 | 509 | 199 | -255 | -0.89 |
+| 2015 | 599 | 211 | -299 | -2.09 |
+| 2016 | 748 | 219 | +344 | +1.06 |
+| 2017 | 595 | 205 | -401 | -2.79 |
+| 2018 | 913 | 236 | -307 | -2.73 |
+| 2019 | 810 | 226 | -277 | -1.62 |
+| 2020 | 1721 | 185 | +387 | +0.67 |
+| half1 | 3366 | 1123 | -116 | -2.42 |
+| half2 | 5151 | 1185 | +16 | -1.69 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 8613 | +42 | -1.64 | -2 |
+| next_open | 8517 | +7 | -2.02 | -36 |
+| next_close | 8517 | +28 | -1.84 | -16 |
+
+Controls: placebo (lag 20) z @0 -0.97, @base -1.67 on 6906 trades; planted +50 bps z -1.25 vs actual -2.02 (shift +0.77).
+
+**a2r-up-close / uncapped / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `close` (bottom quintile, selection lift 2.82): match rate 19.9% of the universe per day; 4 of 7776 trades made the original 63-session move (0.05%) against a universe base rate of 0.01% (realized lift 3.50).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 275007 | 251181 | 7776 | 2273 | +392 | +369 | +346 | +299 | -62 | 0.478 | +329 | +64 | +5.10 | 7.2% | +5.11 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 7776 | +6 | +0.72 | -41 | -5.55 |
+| 5 | 7776 | +41 | +2.08 | -6 | -0.47 |
+| 21 | 7776 | +127 | +4.52 | +80 | +3.04 |
+| 63 * | 7776 | +392 | +5.86 | +346 | +5.10 |
+| 126 | 7457 | +797 | +8.38 | +751 | +7.82 |
+| 252 | 6304 | +1299 | +9.33 | +1252 | +8.99 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 685 | 189 | +425 | +3.37 |
+| 2011 | 796 | 222 | +109 | +0.78 |
+| 2012 | 462 | 192 | +74 | +0.12 |
+| 2013 | 396 | 192 | +421 | +2.52 |
+| 2014 | 481 | 199 | +305 | +2.39 |
+| 2015 | 625 | 217 | +153 | +0.29 |
+| 2016 | 713 | 219 | +669 | +3.34 |
+| 2017 | 556 | 210 | +242 | +1.73 |
+| 2018 | 800 | 223 | +215 | +0.77 |
+| 2019 | 790 | 232 | +170 | +0.85 |
+| 2020 | 1472 | 178 | +645 | +1.97 |
+| half1 | 3082 | 1097 | +218 | +3.65 |
+| half2 | 4694 | 1176 | +430 | +3.75 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 7856 | +382 | +6.16 | +335 |
+| next_open | 7776 | +392 | +5.86 | +346 |
+| next_close | 7776 | +415 | +6.10 | +368 |
+
+Controls: placebo (lag 20) z @0 +6.51, @base +5.78 on 5792 trades; planted +50 bps z +6.64 vs actual +5.86 (shift +0.78).
+
+**a2r-up-med_dv_20_prev / crypto / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `med_dv_20_prev` (bottom quintile, selection lift 1.56): match rate 19.0% of the universe per day; 28 of 1013 trades made the original 63-session move (2.76%) against a universe base rate of 1.21% (realized lift 2.29).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @alt80 | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 25248 | 22740 | 1013 | 698 | +479 | +439 | +419 | +379 | +399 | -369 | 0.305 | +397 | +437 | +0.91 | 23.8% | -2.24 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 1013 | +30 | +1.17 | -30 | +0.11 |
+| 5 | 1013 | -60 | +0.32 | -120 | -0.62 |
+| 21 | 1013 | +4 | +0.34 | -56 | -0.06 |
+| 63 * | 1013 | +479 | +1.04 | +419 | +0.91 |
+| 126 | 929 | +516 | +0.81 | +456 | +0.75 |
+| 252 | 772 | +681 | -0.34 | +621 | -0.38 |
+| i04 | 1008 | +28 | +1.53 | -32 | -2.81 |
+| i12 | 1012 | +44 | +2.06 | -16 | -0.16 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2018 | 21 | 21 | -388 | -0.92 |
+| 2019 | 80 | 66 | -374 | -1.92 |
+| 2020 | 212 | 164 | -540 | -0.85 |
+| 2021 | 368 | 239 | +1704 | +1.71 |
+| 2022 | 332 | 208 | -151 | -0.75 |
+| half1 | 178 | 148 | +193 | -0.10 |
+| half2 | 835 | 550 | +467 | +0.97 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 1021 | +396 | +1.30 | +336 |
+| next_open | 1013 | +479 | +1.04 | +419 |
+| next_close | 1013 | +556 | +1.14 | +496 |
+
+Controls: placebo (lag 20) z @0 +0.52, @base +0.39 on 752 trades; planted +50 bps z +1.16 vs actual +1.04 (shift +0.11).
+
+**a2r-up-rvol_20 / crypto / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `rvol_20` (top quintile, selection lift 1.56): match rate 22.0% of the universe per day; 26 of 1149 trades made the original 63-session move (2.26%) against a universe base rate of 1.21% (realized lift 1.87).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @alt80 | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 27044 | 24187 | 1149 | 821 | -142 | -182 | -202 | -242 | -222 | -1089 | 0.290 | +67 | +381 | +0.18 | 18.1% | -2.35 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 1148 | +17 | +0.64 | -43 | -0.56 |
+| 5 | 1149 | +4 | +0.78 | -56 | +0.07 |
+| 21 | 1149 | -131 | -0.08 | -191 | -0.46 |
+| 63 * | 1149 | -142 | +0.33 | -202 | +0.18 |
+| 126 | 1088 | +364 | +1.24 | +304 | +1.19 |
+| 252 | 945 | -2136 | -0.78 | -2196 | -0.81 |
+| i04 | 1144 | +16 | +1.04 | -44 | -3.02 |
+| i12 | 1148 | +31 | +1.45 | -29 | -0.84 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2018 | 45 | 42 | -513 | -1.89 |
+| 2019 | 153 | 124 | -655 | -1.91 |
+| 2020 | 299 | 210 | -173 | +0.21 |
+| 2021 | 363 | 246 | +133 | +0.74 |
+| 2022 | 289 | 199 | -364 | -0.80 |
+| half1 | 344 | 273 | -56 | -0.12 |
+| half2 | 805 | 548 | -264 | +0.23 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 1157 | -158 | -0.05 | -218 |
+| next_open | 1149 | -142 | +0.33 | -202 |
+| next_close | 1149 | -45 | +0.58 | -105 |
+
+Controls: placebo (lag 20) z @0 +0.97, @base +0.83 on 1050 trades; planted +50 bps z +0.46 vs actual +0.33 (shift +0.13).
+
+**a2r-up-rvol_20 / smallcap / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `rvol_20` (top quintile, selection lift 3.59): match rate 20.3% of the universe per day; 7 of 6021 trades made the original 63-session move (0.12%) against a universe base rate of 0.03% (realized lift 4.39).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 140574 | 125787 | 6021 | 2261 | -18 | -44 | -70 | -121 | -689 | 0.415 | -149 | +67 | -2.23 | 7.0% | -4.25 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 6021 | -28 | -2.64 | -79 | -7.73 |
+| 5 | 6021 | -43 | -2.98 | -95 | -5.70 |
+| 21 | 6021 | -63 | -2.06 | -114 | -3.47 |
+| 63 * | 6021 | -18 | -1.44 | -70 | -2.23 |
+| 126 | 5704 | -37 | -1.16 | -88 | -1.74 |
+| 252 | 4901 | -279 | -0.55 | -330 | -0.87 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 435 | 192 | -35 | +0.97 |
+| 2011 | 489 | 206 | -143 | -1.59 |
+| 2012 | 315 | 178 | -118 | -1.09 |
+| 2013 | 304 | 182 | -258 | -1.03 |
+| 2014 | 407 | 198 | -106 | -0.98 |
+| 2015 | 482 | 214 | -335 | -2.35 |
+| 2016 | 522 | 220 | +39 | -0.23 |
+| 2017 | 529 | 213 | -311 | -1.71 |
+| 2018 | 695 | 232 | -323 | -2.99 |
+| 2019 | 723 | 240 | -231 | -1.28 |
+| 2020 | 1120 | 186 | +466 | +1.18 |
+| half1 | 2152 | 1059 | -165 | -2.26 |
+| half2 | 3869 | 1202 | -17 | -1.20 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 6066 | +20 | -1.44 | -31 |
+| next_open | 6021 | -18 | -1.44 | -70 |
+| next_close | 6021 | +24 | -0.99 | -28 |
+
+Controls: placebo (lag 20) z @0 -0.28, @base -0.92 on 4669 trades; planted +50 bps z -0.69 vs actual -1.44 (shift +0.75).
+
+**a2r-up-rvol_20 / uncapped / dev — direction long, decision horizon 63 sessions, next-open fill**
+
+Autopsy rule on `rvol_20` (top quintile, selection lift 3.59): match rate 20.2% of the universe per day; 9 of 11430 trades made the original 63-session move (0.08%) against a universe base rate of 0.01% (realized lift 5.35).
+
+| candidates | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 277822 | 250283 | 11430 | 2543 | +28 | +6 | -16 | -60 | -534 | 0.434 | -101 | +46 | -2.21 | 6.6% | -3.11 |
+
+Horizon curve (next-open fill; mean excess per trade, bps; z): 
+| horizon | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1 | 11430 | -19 | -2.25 | -63 | -8.90 |
+| 5 | 11430 | -38 | -2.15 | -82 | -5.22 |
+| 21 | 11430 | -46 | -2.02 | -90 | -3.84 |
+| 63 * | 11430 | +28 | -1.20 | -16 | -2.21 |
+| 126 | 10908 | +85 | -0.69 | +41 | -1.35 |
+| 252 | 9213 | -67 | -0.88 | -112 | -1.29 |
+
+Per period (decision horizon, base cost): 
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2010 | 962 | 228 | -117 | -0.95 |
+| 2011 | 1206 | 239 | -89 | -1.92 |
+| 2012 | 661 | 228 | -90 | -0.66 |
+| 2013 | 540 | 215 | -56 | -0.22 |
+| 2014 | 661 | 219 | -114 | -0.58 |
+| 2015 | 854 | 242 | -171 | -2.61 |
+| 2016 | 1028 | 244 | +73 | -0.01 |
+| 2017 | 830 | 244 | -165 | -0.75 |
+| 2018 | 1242 | 245 | -112 | -1.51 |
+| 2019 | 1229 | 250 | -130 | -0.71 |
+| 2020 | 2217 | 189 | +319 | +1.42 |
+| half1 | 4378 | 1248 | -111 | -2.06 |
+| half2 | 7052 | 1295 | +43 | -1.12 |
+
+Fill comparison (decision horizon, zero cost / base): 
+| fill | trades | gross excess | z @0 | net @base |
+|---|---|---|---|---|
+| close | 11535 | +46 | -0.77 | +2 |
+| next_open | 11430 | +28 | -1.20 | -16 |
+| next_close | 11430 | +52 | -0.71 | +8 |
+
+Controls: placebo (lag 20) z @0 -0.47, @base -1.29 on 8938 trades; planted +50 bps z -0.10 vs actual -1.20 (shift +1.10).
+
 **1d / BTCUSDT / dev — weekly, Sunday close → Monday 01:00 UTC fill**
 
 | cost | weeks | ann. excess (pp) | mean weekly diff (bps) | SE | z | hit | ann. ret strat | ann. ret comp | vol strat | vol comp | max DD strat | max DD comp | top-10 share | z w/o top 10 |

@@ -1,10 +1,11 @@
 ### 2026-10-01 — Wave 1 of the signal-screening program (1a–1e and the extreme-movers counts)
 
 **Phase:** 0 (screening program, wave 1; no build)
-**Commit:** pre-registration = the commit that adds this file (hash recorded in
-`research_log.md` and `ledger.md` once it exists) · code and results: filled in under
-"Run details" when they are committed
-**Status:** pre-registered
+**Commit:** `af23489` (pre-registration) · `cbc3c67` (amendment) · `6343335`, `59c8d43`,
+`f912434` (engine) · `07dd1de` (data and regression) · `40eac00` (dev tables) · the
+commit that closes this entry (autopsy, confirm, ledger, interpretation) is named in
+`research_log.md`
+**Status:** complete
 **Branch:** `screen/wave-1`
 **Proposal:** `andyvanosdale/penumbra-specs` branch `claude/zen-clarke-ocjx6t` at
 `5417b070` — `proposals/2026-09-30-signal-screening-pivot.md` (sections 4, 6, 7, 8) and
@@ -639,14 +640,288 @@ today's cap (static) and is excluded from the autopsy-to-rule selection. In cryp
 | zscore_20 | 3.06 | 0.81 | 0.87 | 31 |
 | shock | 2.42 | 0.81 | 0.77 | 31 |
 
+##### Confirm era
+
+No catalog signal (1a–1e) met the interesting threshold in dev, so **no catalog signal
+was run on the confirm era**; the equity confirm era (2021–2023) and the crypto confirm
+era (2023–2024) are unread for all 18 catalog rows. Four autopsy-derived rules did clear
+the dev threshold (next subsection) and were run once on the equity confirm era, with
+no parameter change; the crypto confirm era was not read by anything in this wave.
+
+##### Autopsy to rule (step D2, amendment A2)
+
+**Selection**, applied by the locked procedure to the committed lift table (`40eac00`):
+the three features with the highest lift ≥ 1.5 per group, from the `uncapped` table for
+equities and the `crypto` table for crypto, `cap` excluded, ties by event count then
+name. Twelve rules, eighteen ledger rows.
+
+| market (selected on) | group | rule | feature | quintile | selection lift | events |
+|---|---|---|---|---|---|---|
+| equity (uncapped) | 5× / 63 | `a2r-up-rvol_20` | rvol_20 | top | 3.59 | 39 |
+| equity (uncapped) | 5× / 63 | `a2r-up-close_to_high_250` | close_to_high_250 | bottom | 3.46 | 39 |
+| equity (uncapped) | 5× / 63 | `a2r-up-close` | close | bottom | 2.82 | 39 |
+| equity (uncapped) | −80% / 63 | `a2r-down-close` | close | top | 2.24 | 145 |
+| equity (uncapped) | −80% / 63 | `a2r-down-rvol_20` | rvol_20 | top | 2.21 | 145 |
+| equity (uncapped) | −80% / 63 | `a2r-down-ret_20` | ret_20 | top | 2.14 | 145 |
+| crypto (crypto) | 5× / 63 | `a2r-up-close` | close | bottom | 1.74 | 112 |
+| crypto (crypto) | 5× / 63 | `a2r-up-med_dv_20_prev` | med_dv_20_prev | bottom | 1.56 | 112 |
+| crypto (crypto) | 5× / 63 | `a2r-up-rvol_20` | rvol_20 | top | 1.56 | 112 |
+| crypto (crypto) | −80% / 63 | `a2r-down-vol_pctl_250` | vol_pctl_250 | top | 3.33 | 15 |
+| crypto (crypto) | −80% / 63 | `a2r-down-rvol_20` | rvol_20 | top | 3.23 | 31 |
+| crypto (crypto) | −80% / 63 | `a2r-down-ret_60` | ret_60 | top | 3.20 | 25 |
+
+Each rule fires on D when the feature's within-day percentile among the universe on D is
+≥ 0.8 (top) or ≤ 0.2 (bottom): by construction it matches about a fifth of the universe
+every session, so these are baskets, not picks. Long for the 5× group, short /
+long-avoid for the −80% group, 63-session decision horizon, next-open fill, no
+re-entry while held, the common cost schedule and controls. "Made the move" is the
+number (share) of traded candidates whose 63-session forward return was ≥ +400% (up
+rules) or ≤ −80% (down rules); "universe base rate" is the mean over sessions of the
+share of the universe that made the same move from the same fill.
+
+**Dev era** (equities 2010–2020, crypto 2018–2022; in-sample by construction, since the
+features were chosen on these years):
+
+| rule | universe | dir | match / day | trades | days | net @0 | @base | @high | z @0 | z @base | top-10 share | z w/o top 10 | half1 / half2 @base | made the move | universe base rate | realized lift | placebo z @0 | planted shift | interesting | 
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `a2r-up-rvol_20` | smallcap | long | 20.3% | 6,021 | 2,261 | -18 | **-70** | -121 | -1.44 | **-2.23** | 7.0% | -4.25 | -165 / -17 | 7 (0.12%) | 0.03% | 4.39 | -0.28 | +0.75 | no |
+| `a2r-up-close_to_high_250` | smallcap | long | 19.8% | 4,287 | 1,919 | +22 | **-29** | -80 | -0.75 | **-1.39** | 7.9% | -3.17 | -86 / +5 | 6 (0.14%) | 0.03% | 5.29 | -0.80 | +0.61 | no |
+| `a2r-up-close` | smallcap | long | 19.8% | 4,000 | 1,915 | +494 | **+440** | +385 | +6.08 | **+5.28** | 7.5% | +4.75 | +253 / +554 | 4 (0.10%) | 0.03% | 3.78 | +6.10 | +0.72 | yes |
+| `a2r-up-rvol_20` | uncapped | long | 20.2% | 11,430 | 2,543 | +28 | **-16** | -60 | -1.20 | **-2.21** | 6.6% | -3.11 | -111 / +43 | 9 (0.08%) | 0.01% | 5.35 | -0.47 | +1.10 | no |
+| `a2r-up-close_to_high_250` | uncapped | long | 19.9% | 8,517 | 2,308 | +7 | **-36** | -80 | -2.02 | **-2.74** | 7.8% | -4.60 | -116 / +16 | 7 (0.08%) | 0.01% | 5.58 | -0.97 | +0.77 | no |
+| `a2r-up-close` | uncapped | long | 19.9% | 7,776 | 2,273 | +392 | **+346** | +299 | +5.86 | **+5.10** | 7.2% | +5.11 | +218 / +430 | 4 (0.05%) | 0.01% | 3.50 | +6.51 | +0.78 | yes |
+| `a2r-down-close` | smallcap | short | 20.3% | 3,834 | 1,878 | +577 | **+530** | +483 | +7.67 | **+7.00** | 6.2% | +9.83 | +431 / +589 | 28 (0.73%) | 0.24% | 2.99 | +7.95 | +0.70 | yes |
+| `a2r-down-rvol_20` | smallcap | short | 20.3% | 6,021 | 2,261 | +18 | **-33** | -85 | +1.44 | **+0.65** | 7.2% | +2.29 | +60 / -85 | 29 (0.48%) | 0.24% | 1.97 | +0.28 | +0.75 | no |
+| `a2r-down-ret_20` | smallcap | short | 20.3% | 9,495 | 2,535 | +69 | **+20** | -30 | -0.05 | **-1.25** | 5.9% | -0.98 | -89 / +82 | 34 (0.36%) | 0.24% | 1.46 | +0.49 | +1.19 | no |
+| `a2r-down-close` | uncapped | short | 20.2% | 8,908 | 2,389 | +366 | **+333** | +299 | +8.70 | **+7.88** | 4.7% | +9.36 | +288 / +361 | 31 (0.35%) | 0.18% | 1.95 | +9.12 | +1.12 | yes |
+| `a2r-down-rvol_20` | uncapped | short | 20.2% | 11,430 | 2,543 | -28 | **-72** | -116 | +1.20 | **+0.18** | 6.8% | +0.75 | +21 / -130 | 32 (0.28%) | 0.18% | 1.57 | +0.47 | +1.10 | no |
+| `a2r-down-ret_20` | uncapped | short | 20.2% | 19,391 | 2,676 | +73 | **+33** | -6 | +0.98 | **-0.45** | 6.5% | -0.43 | -23 / +70 | 42 (0.22%) | 0.18% | 1.21 | +1.01 | +1.70 | no |
+| `a2r-up-close` | crypto | long | 19.0% | 547 | 454 | +1901 | **+1841** | +1801 | +1.54 | **+1.47** | 41.8% | -2.45 | +341 / +2314 | 18 (3.29%) | 1.21% | 2.73 | +1.03 | +0.06 | no |
+| `a2r-up-med_dv_20_prev` | crypto | long | 19.0% | 1,013 | 698 | +479 | **+419** | +379 | +1.04 | **+0.91** | 23.8% | -2.24 | +193 / +467 | 28 (2.76%) | 1.21% | 2.29 | +0.52 | +0.11 | no |
+| `a2r-up-rvol_20` | crypto | long | 22.0% | 1,149 | 821 | -142 | **-202** | -242 | +0.33 | **+0.18** | 18.1% | -2.35 | -56 / -264 | 26 (2.26%) | 1.21% | 1.87 | +0.97 | +0.13 | no |
+| `a2r-down-vol_pctl_250` | crypto | short | 12.0% | 1,102 | 722 | +18 | **-42** | -82 | -0.31 | **-0.47** | 17.3% | +2.29 | +10 / -56 | 0 (0.00%) | 0.15% | 0.00 | +0.28 | +0.14 | no |
+| `a2r-down-rvol_20` | crypto | short | 22.0% | 1,149 | 821 | +142 | **+82** | +42 | -0.33 | **-0.49** | 18.3% | +1.82 | -64 / +144 | 4 (0.35%) | 0.15% | 2.33 | -0.97 | +0.13 | no |
+| `a2r-down-ret_60` | crypto | short | 20.0% | 929 | 677 | +382 | **+322** | +282 | +0.68 | **+0.54** | 17.7% | +4.04 | -79 / +480 | 5 (0.54%) | 0.15% | 3.60 | -0.83 | +0.12 | no |
+
+Horizon curve, dev, gross excess per trade in bps (z at zero cost):
+
+| rule | universe | 1 | 5 | 21 | 63 * | 126 | 252 |
+|---|---|---|---|---|---|---|---|
+| `a2r-up-rvol_20` | smallcap | -28 (-2.64) | -43 (-2.98) | -63 (-2.06) | -18 (-1.44) | -37 (-1.16) | -279 (-0.55) |
+| `a2r-up-close_to_high_250` | smallcap | +1 (-0.52) | -5 (+0.44) | -65 (-1.23) | +22 (-0.75) | -30 (-1.14) | -243 (-0.73) |
+| `a2r-up-close` | smallcap | +12 (+0.81) | +69 (+2.21) | +176 (+3.93) | +494 (+6.08) | +941 (+6.75) | +1414 (+7.45) |
+| `a2r-up-rvol_20` | uncapped | -19 (-2.25) | -38 (-2.15) | -46 (-2.02) | +28 (-1.20) | +85 (-0.69) | -67 (-0.88) |
+| `a2r-up-close_to_high_250` | uncapped | -10 (-1.07) | -17 (-2.07) | -59 (-2.48) | +7 (-2.02) | -22 (-3.06) | -306 (-3.07) |
+| `a2r-up-close` | uncapped | +6 (+0.72) | +41 (+2.08) | +127 (+4.52) | +392 (+5.86) | +797 (+8.38) | +1299 (+9.33) |
+| `a2r-down-close` | smallcap | +19 (+1.85) | +87 (+4.13) | +204 (+5.05) | +577 (+7.67) | +1002 (+10.14) | +1679 (+12.16) |
+| `a2r-down-rvol_20` | smallcap | +28 (+2.64) | +43 (+2.98) | +63 (+2.06) | +18 (+1.44) | +37 (+1.16) | +279 (+0.55) |
+| `a2r-down-ret_20` | smallcap | +3 (-0.40) | +21 (+0.73) | +27 (+0.79) | +69 (-0.05) | +44 (-1.24) | -21 (-0.74) |
+| `a2r-down-close` | uncapped | +13 (+2.21) | +43 (+4.41) | +122 (+6.41) | +366 (+8.70) | +617 (+10.44) | +1109 (+15.63) |
+| `a2r-down-rvol_20` | uncapped | +19 (+2.25) | +38 (+2.15) | +46 (+2.02) | -28 (+1.20) | -85 (+0.69) | +67 (+0.88) |
+| `a2r-down-ret_20` | uncapped | +3 (+0.27) | +15 (+0.38) | +23 (+0.68) | +73 (+0.98) | +56 (-0.62) | -41 (-1.49) |
+| `a2r-up-close` | crypto | +19 (+0.45) | +41 (+0.05) | +220 (+0.56) | +1901 (+1.54) | +5671 (+2.46) | +13601 (+2.92) |
+| `a2r-up-med_dv_20_prev` | crypto | +30 (+1.17) | -60 (+0.32) | +4 (+0.34) | +479 (+1.04) | +516 (+0.81) | +681 (-0.34) |
+| `a2r-up-rvol_20` | crypto | +17 (+0.64) | +4 (+0.78) | -131 (-0.08) | -142 (+0.33) | +364 (+1.24) | -2136 (-0.78) |
+| `a2r-down-vol_pctl_250` | crypto | +11 (-0.09) | -122 (-1.60) | -216 (-1.49) | +18 (-0.31) | -504 (-0.76) | +422 (+0.45) |
+| `a2r-down-rvol_20` | crypto | -17 (-0.64) | -4 (-0.78) | +131 (+0.08) | +142 (-0.33) | -364 (-1.24) | +2136 (+0.78) |
+| `a2r-down-ret_60` | crypto | +7 (-0.35) | +8 (-0.69) | +173 (+0.89) | +382 (+0.68) | +855 (+0.90) | +876 (+1.25) |
+
+**Confirm era** (equities 2021-01-01 → 2023-12-31; the four rules that cleared the dev
+threshold, run once, same rule):
+
+| rule | universe | dir | match / day | trades | days | net @0 | @base | @high | z @0 | z @base | top-10 share | z w/o top 10 | half1 / half2 @base | made the move | universe base rate | realized lift | placebo z @0 | planted shift | interesting | 
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `a2r-up-close` | smallcap | long | 19.9% | 2,666 | 640 | +762 | **+709** | +656 | +6.41 | **+5.91** | 19.7% | +5.86 | +836 / +528 | 3 (0.11%) | 0.03% | 3.56 | +5.48 | +0.46 | yes |
+| `a2r-up-close` | uncapped | long | 20.0% | 4,416 | 664 | +492 | **+445** | +397 | +5.58 | **+4.80** | 19.9% | +4.19 | +617 / +215 | 5 (0.11%) | 0.03% | 4.23 | +4.03 | +0.77 | yes |
+| `a2r-down-close` | smallcap | short | 20.1% | 2,600 | 618 | +959 | **+915** | +871 | +7.37 | **+6.96** | 20.2% | +8.88 | +864 / +975 | 39 (1.50%) | 0.43% | 3.48 | +7.78 | +0.45 | yes |
+| `a2r-down-close` | uncapped | short | 20.1% | 5,139 | 664 | +446 | **+415** | +383 | +5.87 | **+5.37** | 22.8% | +5.37 | +464 / +362 | 43 (0.84%) | 0.29% | 2.90 | +8.06 | +0.80 | yes |
+
+Horizon curve and per year, confirm, gross (z) and per-year net at base (z):
+
+| rule | universe | 1 | 5 | 21 | 63 * | 126 | 252 | 2021 | 2022 | 2023 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `a2r-up-close` | smallcap | +34 (+1.02) | +81 (+1.97) | +333 (+5.00) | +762 (+6.41) | +1179 (+9.23) | +1986 (+10.64) | +923 (+4.93) | +732 (+4.47) | +330 (+1.61) |
+| `a2r-up-close` | uncapped | +24 (+1.12) | +32 (+1.80) | +190 (+3.22) | +492 (+5.58) | +769 (+6.69) | +1280 (+8.10) | +703 (+4.18) | +381 (+3.28) | +171 (+0.76) |
+| `a2r-down-close` | smallcap | +48 (+2.67) | +104 (+2.81) | +316 (+3.86) | +959 (+7.37) | +1557 (+11.37) | +2393 (+18.57) | +937 (+2.99) | +843 (+5.85) | +983 (+3.46) |
+| `a2r-down-close` | uncapped | +23 (+2.72) | +61 (+3.67) | +191 (+6.85) | +446 (+5.87) | +719 (+9.11) | +1225 (+10.41) | +621 (+1.96) | +292 (+5.22) | +364 (+4.17) |
+
+**Reading, rule by rule.**
+
+- *Volatility (`rvol_20`, top quintile) describes both tails and predicts neither.* It
+  was selected for the 5× group (lift 3.6) and for the −80% group (2.2), so the long
+  and the short rule hold the same basket with opposite signs: −70 / −16 bps net
+  (long) and −33 / −72 (short) in equities, −202 / +82 in crypto. The feature says
+  "this name will move", not which way. Verdict `null` on all six rows.
+- *Distance below the 250-day high (bottom quintile, long)* describes the equity 5×
+  names (lift 3.5) and loses money prospectively: −29 / −36 bps net, z −1.4 / −2.7, and
+  negative at 126 and 252 sessions. The fallen names that later multiplied were a few
+  among many that kept falling. `null`.
+- *Recent gain (`ret_20`, top quintile, short)* for the −80% group: +20 / +33 bps net,
+  z −1.3 / −0.5: a blow-off top precedes some collapses and nothing on average. `null`.
+- *Crypto*: cheap (bottom price, +1,841 bps gross at 63 sessions but z 1.47, 42% of the
+  P&L from ten days, sign flips with those days removed), illiquid (+419, z 0.9), and
+  the three down-group features (−42 to +322, |z| < 0.6): all `null`. The crypto 5× hit
+  rate among matches is 2–3% against a 1.2% base rate: a real lift and still a
+  1-in-30 pick.
+- *Price level, equities (`close`): the one pair that cleared the bar, and it is an
+  artifact under the pre-registered rules.* Long the cheapest quintile: +440 / +346 bps
+  net at base over 63 sessions (z +5.3 / +5.1) in dev and +709 / +445 (z +5.9 / +4.8)
+  in confirm. Short the most expensive quintile: +530 / +333 (z +7.0 / +7.9) in dev
+  and +915 / +415 (z +7.0 / +5.4) in confirm. Both legs beat the equal-weight universe
+  in every year of both eras, the curves rise monotonically to 252 sessions, and the
+  stale-signal placebo is as significant as the signal (z +6.1, +6.5, +8.0, +9.1).
+  Rule 4 fails on the placebo, so the verdict is `artifact` on all four rows, and the
+  reason the placebo fails is the reason the result should not be believed: a name's
+  price quintile is a persistent characteristic, so the "lagged" rule is the same
+  basket. What the four rows measure is a monotonic price-level premium in *this
+  sample*: cheap names outrun the universe, the universe outruns expensive names,
+  by about 18 percentage points a year net. That is an order of magnitude above the
+  small-cap or low-price premia in delisting-complete data, and it is exactly what a
+  current listing manufactures: delistings concentrate in the cheapest quintile of a
+  40%-vol universe, every name in this sample survived to 2026, so the cheap names here
+  are the ones that recovered. The confirm era (2021–2023, a small-cap drawdown with
+  many delistings whose survivors rebounded) is the worst possible place to test it.
+  The hit rate for the original move says the same: 4 of 4,000 cheap-quintile trades
+  went on to 5× (0.10%, a 3.8× lift on a 0.03% base rate). The feature finds past
+  winners at four times the base rate and still names one in a thousand.
+- *Which features describe past movers but do not predict:* volatility, distance
+  below the 52-week high, recent gain, and (in crypto) illiquidity and price. *Price
+  level in equities* predicts in this sample and cannot be separated from survivorship
+  on free data; it is not evidence either way until it is run on a delisting-complete
+  universe with delisting returns.
+
 #### Interpretation
 
-*(written last)*
+- **Was the pre-registered "interesting" criterion met?** No, for every catalog
+  signal: 18 of 18 rows are `null` in dev, so none went to the confirm era. Of the
+  autopsy-derived rules, 14 of 18 are `null` and 4 are `artifact` (dev and confirm
+  both clear rules 1–3; rule 4 fails on the placebo). Zero graduates. The ledger has
+  36 rows for this wave.
+- **What does this tell us about the hypothesis** (do historical signals predict
+  drops and rises over the next days to weeks)?
+  - *Post-shock continuation (1a) exists before costs and not after.* The universe
+    beats the −2σ names over the next five sessions by +25 bps (`smallcap`, z +3.0),
+    +1 bps (`uncapped`, z +2.8) and +54 bps (crypto, z +3.6) gross; at the base
+    schedule that is −18, −34 and −6 bps. In crypto the gross continuation grows to
+    +102 bps at 21 sessions and +148 at 63 (z 1.9, 1.3) and the day-weighted edge is
+    +161 ± 62 bps at base; the trade-weighted mean, which is the pre-registered
+    quantity, is −6. As a long-avoidance rule (zero cost) it is worth +25 / +54 bps
+    per avoided name over a week: real, small, and not a strategy.
+  - *Up-shock continuation (1b) is reversal in equities.* A +2σ day on 2× volume is
+    followed by −45 / −28 bps gross over five sessions and −79 / −53 over 21 (z −3 to
+    −4), in both halves of the era and in nine of eleven years; the survivorship bias
+    favours this long and it still loses. The high-volume-return premium does not show
+    up at this resolution. Crypto: +80 gross at five sessions (z +0.5), −40 at 21.
+  - *Slide-cohort momentum (1c) is flat in equities* (−24 to −56 bps net, |z| ≤ 2.3,
+    gross within ±20 bps) in both legs. In crypto the short leg is the only
+    positive-and-costed cell of the wave (+231 bps net, z +2.4) on 361 trades over
+    122 days with 38% of the P&L from ten days: below the counts floor and the z
+    floor. The long leg is +187 bps net at z +1.0.
+  - *Crypto time-series momentum (1d) cannot be decided at this sample size.* Long
+    BTC only when its 30- and 90-day returns are positive earned +32% a year against
+    +1% for buy-and-hold over 2018–2022 (ETH +63% vs +1%), with half the drawdown and
+    a third of the time in the market, and the weekly z is +0.29 / +0.47. The weekly
+    SE is 52–67 bps, so the rank-mode bar (z ≥ 3 over ≥ 36 weeks) requires a mean
+    weekly edge of 150–200 bps, which is 80–100 percentage points a year. The planted
+    +50 bps a week (26 pp a year) moves z by only 0.7–1.0. The pre-registered test has
+    no power for this signal; the point estimates are large and their sign flips by
+    year (+76, −1, −70, −45, +80 pp). This is a null against the rule, not evidence
+    against trend-following.
+  - *Crypto cross-sectional momentum (1e) is negative*: −12 pp a year net (z −0.5),
+    −37 and −59 pp in 2021 and 2022. The 1–4 week premium of the literature does not
+    appear in the top-100 at a weekly 01:00 UTC fill with three-week holds.
+  - *Extreme movers.* The base rates decide the premise: in the free equity sample a
+    5× quarter happens to 0.1–0.2% of eligible names a year (27 of the 39 uncapped
+    name-years are 2020) and a 10× year to 24 names in eleven years; −80% quarters are
+    four times as common even with the delisted names missing. In crypto a 5× quarter
+    happened to 20–25% of the top-100 in 2020 and 2021 and to 1 name in 2022. The
+    autopsy says what the owner's premise predicts, that the movers looked alike the
+    day before (volatile, far below their highs, cheap, illiquid, or, for the
+    collapses, recently up), and the prospective runs say that those descriptions do
+    not pick direction. The one feature that does, price level, is confounded with
+    survival.
+  - *Horizon grid.* No catalog signal's curve improves toward a horizon that would
+    rescue it; where the long horizons are positive (1a and 1c-long in equities at
+    126–252 sessions, +41 to +127 bps gross) the z is under 1.5. The crypto intraday
+    horizons (01:00 → 04:00 and → 12:00 UTC) are within ±17 bps of zero for every
+    signal: nothing is left on the table in the first hours after the fill.
+- **What does it tell us about the harness?** The refactor reproduces the v1 script
+  cell for cell on both markets and the committed v1 crypto tables to the basis point.
+  The zero-cost placebo is flat for every event signal (|z| ≤ 1.1) and for the rank
+  signals (|z| ≤ 1.8), and the planted +50 bps moves z by 2–5 units in equities and
+  0.3–1.1 in crypto, as in v1: equity samples would have seen a real +50 bps, crypto
+  event samples would not have resolved one against zero (1c-short crypto SE 148 bps).
+  Two things the wave taught: (1) Binance reuses symbols across token swaps and relists,
+  which the v1 screen had not caught because its horizon was short; the segmentation
+  rule is now in the data layer and the pre-fix tables are kept. (2) The lag-20
+  stale-signal placebo tests event-ness: for a persistent characteristic it reproduces
+  the signal, so it cannot clear a rank-type rule and should not be the only
+  artifact check for one; a random-quintile or long-lag placebo belongs in the
+  protocol for rank mode. The placebo-at-base-cost figure is mechanically negative
+  and is reported, not used. The cost schedule remains a placeholder (the owner's
+  quote sample is still the fix); the `spec` column shows what the uncalibrated
+  Abdi–Ranaldo model would charge (−350 to −690 bps per trade), which is why no
+  decision here rests on it.
+- **Confidence.** High for the equity catalog nulls: every bias in the sample favours
+  the long signals, the samples are 5,700–37,900 trades over 1,860–2,690 entry days,
+  and the estimates are 1.5–6.5 standard errors below the threshold. High for 1e and
+  for the equity autopsy nulls. Medium-high for the crypto event nulls (hundreds of
+  entry days, heavy day clustering, one borderline cell on 361 trades). Low for 1d in
+  either direction: the test is underpowered by a factor of ten. The four `artifact`
+  rows are confidently *not* evidence of an edge and confidently *not* evidence
+  against one; they are the survivorship bias made visible, which is what the
+  pre-registration said a long-only positive on this data would be.
 
 #### Next action (per the pre-registered decision rules)
 
-*(written last)*
+1. **Rule 1 (every catalog row `null`): no confirm run, no further variant, no build.**
+   Epic 7 (slide-cohort momentum) is not promoted; the continuation effect does not
+   survive the cost schedule (proposal, week-1 decision: no).
+2. **Rule 2 (autopsy rules): four `artifact`, fourteen `null`.** No autopsy-derived
+   signal graduates. The price-level pair is recorded as the wave's one open question
+   (below); it earns nothing until it is run on a delisting-complete universe.
+3. **Rule 3: wave 2 is next** (rank mode on equities: 2a 12–1 momentum, 2b 52-week-high
+   proximity, 2d weekly reversal in liquid names), with two protocol changes to propose
+   to the PM before it runs, as new pre-registrations rather than edits: a rank-mode
+   placebo that is not defeated by persistence (random quintile, or a 250-session
+   lag), and a rank-mode power statement (weeks × SE) next to the z bar, since the
+   current bar cannot be met by any plausible monthly or weekly premium in 11 years
+   of data.
+4. **Rule 4:** the extreme-movers tables are filed as hypothesis material; the three
+   autopsy pre-registrations per direction have been spent in this wave, so wave 3's
+   signal 3c draws nothing further from this table without a new proposal.
+5. **Record in `penumbra-specs`:** this entry, the ledger, and the survivorship finding
+   as a DECISIONS note ("Free data cannot test a price-sorted, quarter-horizon
+   equity rule"). Separate PR on that repo, not made from this branch.
+6. **No purchase.** Nothing here meets the graduation rule, so no Sharadar data is
+   bought on this wave's account. The price-level question is the one result a
+   delisting-complete sample would decide in an afternoon; whether that justifies the
+   purchase on its own is the owner's call, and the proposal's own words are that free
+   counts and lifts are provisional until then.
 
 #### Open questions / followups
 
-*(written last)*
+- **Survivorship, made concrete.** A free, bounded test of the price-level pair
+  exists before any purchase: rebuild the universe from archived Nasdaq Trader
+  directories (one per year, via the Wayback Machine if the egress policy allows it)
+  so that names delisted since appear in their years, and re-run `a2r-up-close` and
+  `a2r-down-close` with the delisted names' last available bars. If the premium halves
+  or reverses, the four `artifact` rows are explained; if it survives, buy the data.
+- **1d is undecided, not dead.** Trend-following on BTC and ETH shows the shape the
+  literature reports (half the drawdown, a third of the exposure, higher return) and a
+  z near zero on 259 weeks. A longer history (BTC from 2014 on another venue) or a
+  daily evaluation would quadruple the observations; the bar itself needs the power
+  statement above.
+- **1a as a filter, not a trade.** The gross five-session continuation after a −2σ
+  day (+25 bps `smallcap`, +54 bps crypto, z 3.0 / 3.6, placebo flat) is a usable
+  avoidance rule for any long signal in this program: do not buy a −2σ name for a
+  week. It costs nothing and it is the one robust directional read of the wave.
+- **1b's reversal** (−45 / −79 bps over 5 / 21 sessions after a +2σ day on 2× volume,
+  z −3 to −4, nine of eleven years) is a short-side candidate for a later wave if
+  shorting is ever primary; as a long-avoid it says the same as 1a from the other
+  side: do not chase a volume spike.
+- The crypto intraday horizons are flat, so the 01:00 UTC fill convention is not
+  leaving anything on the table; a 00:00 → 01:00 read (the hour between the signal
+  close and the fill) was not pre-registered and was not computed.
+- Equities' 2010–2014 universes are half the size of 2015–2020 in a current listing
+  (median 230 vs 332 names in `smallcap`), another face of the same bias.

@@ -228,7 +228,13 @@ def cmd_autopsy(args) -> None:
                                  "rule": autopsy.rule_name(group, fdef["feature"])})
             if not feats:
                 log.info("autopsy %s %s: no feature with lift >= %.1f", market, group, autopsy.LIFT_MIN)
+            only = set(args.only.split(",")) if args.only else None
+            feats = [f for f in feats if only is None or autopsy.rule_name(group, f["feature"]) in only]
+            if only is not None:
+                run_unis = [u for u in run_unis if not args.universe or u in args.universe.split(",")]
             for uni in run_unis:
+                if not feats:
+                    continue
                 A, mask, lane = lanes.arrays(uni)
                 era = engine.ERAS[lane][args.era]
                 for fdef in feats:
@@ -238,7 +244,8 @@ def cmd_autopsy(args) -> None:
                     s = _run_event(rule, A, mask, lane, uni, args.era, out, raw=raw, extra=extra)
                     s.update({"feature": fdef["feature"], "side": fdef["side"], "selection_lift": fdef["lift"], "group": group})
                     summaries.append(s)
-    pd.DataFrame(selected).to_csv(out / "a2r_selected_features.csv", index=False)
+    if not args.only:
+        pd.DataFrame(selected).to_csv(out / "a2r_selected_features.csv", index=False)
     mp = out / f"meta_{args.era}.json"
     meta = json.loads(mp.read_text()) if mp.exists() else {}
     meta.setdefault("lanes", {}).update(lanes.meta())
@@ -444,7 +451,8 @@ if __name__ == "__main__":
     p = sub.add_parser("movers"); p.add_argument("--universe", default="all"); p.add_argument("--era", default="dev", choices=["dev"])
     p.add_argument("--out", default=None); p.set_defaults(fn=cmd_movers)
     p = sub.add_parser("autopsy"); p.add_argument("--lifts", required=True); p.add_argument("--era", default="dev", choices=["dev", "confirm"])
-    p.add_argument("--out", default=None); p.set_defaults(fn=cmd_autopsy)
+    p.add_argument("--only", default=None, help="comma list of rule names (confirm era: only the rules that cleared dev)")
+    p.add_argument("--universe", default=None); p.add_argument("--out", default=None); p.set_defaults(fn=cmd_autopsy)
     p = sub.add_parser("tables"); p.add_argument("--out", default=None); p.set_defaults(fn=cmd_tables)
     p = sub.add_parser("ledger"); p.add_argument("--out", default=None); p.add_argument("--prereg", required=True)
     p.add_argument("--date", default=str(pd.Timestamp.utcnow().date())); p.add_argument("--entry", default="2026-10-01-wave-1-screen.md")

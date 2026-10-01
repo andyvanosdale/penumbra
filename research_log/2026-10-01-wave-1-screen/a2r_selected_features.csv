@@ -1,0 +1,13 @@
+market,selected_on,group,direction,feature,side,lift,events,rule
+equity,uncapped,up5x63,long,rvol_20,top,3.589743589743589,39,a2r-up-rvol_20
+equity,uncapped,up5x63,long,close_to_high_250,bottom,3.461538461538461,39,a2r-up-close_to_high_250
+equity,uncapped,up5x63,long,close,bottom,2.8205128205128203,39,a2r-up-close
+equity,uncapped,down80_63,short,close,top,2.2413793103448274,145,a2r-down-close
+equity,uncapped,down80_63,short,rvol_20,top,2.206896551724138,145,a2r-down-rvol_20
+equity,uncapped,down80_63,short,ret_20,top,2.1379310344827585,145,a2r-down-ret_20
+crypto,crypto,up5x63,long,close,bottom,1.7410714285714284,112,a2r-up-close
+crypto,crypto,up5x63,long,med_dv_20_prev,bottom,1.5625,112,a2r-up-med_dv_20_prev
+crypto,crypto,up5x63,long,rvol_20,top,1.5625,112,a2r-up-rvol_20
+crypto,crypto,down80_63,short,vol_pctl_250,top,3.333333333333333,15,a2r-down-vol_pctl_250
+crypto,crypto,down80_63,short,rvol_20,top,3.225806451612903,31,a2r-down-rvol_20
+crypto,crypto,down80_63,short,ret_60,top,3.2,25,a2r-down-ret_60
