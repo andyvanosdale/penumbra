@@ -29,7 +29,8 @@ import pandas as pd
 from experiments.screen.data import shift_rows
 from experiments.screen.v1rule import spec_cost
 
-HORIZONS = [1, 5, 21, 63]
+HORIZONS = [1, 5, 21, 63, 126, 252]
+INTRADAY = {"i04": "o4", "i12": "o12"}   # crypto: 01:00 UTC fill -> 04:00 / 12:00 UTC hourly open on D+1
 ORDER_USD = 10_000.0
 PLACEBO_LAG = 20          # sessions (days for crypto rank mode)
 PLANTED_BPS = 50
@@ -111,10 +112,10 @@ def period_slices(dates: pd.Series, lane: str, era_name: str) -> list[tuple[str,
     d = pd.DatetimeIndex(dates)
     out = [("all", np.ones(len(d), dtype=bool))]
     for y in sorted(set(d.year)):
-        out.append((str(y), (d.year == y).to_numpy()))
+        out.append((str(y), np.asarray(d.year == y)))
     split = pd.Timestamp(HALF_SPLIT[lane][era_name])
-    out.append(("half1", (d < split).to_numpy()))
-    out.append(("half2", (d >= split).to_numpy()))
+    out.append(("half1", np.asarray(d < split)))
+    out.append(("half2", np.asarray(d >= split)))
     return out
 
 
@@ -170,6 +171,20 @@ def event_trades(A: dict, raw_cand: np.ndarray, spec: EventSpec, cap_mask: np.nd
         cols[f"uni_fwd_{h}"] = uni[si]
         cols[f"uni_n_{h}"] = uni_n[si]
         cols[f"excess_{h}"] = spec.sign * (cols[f"fwd_{h}"] - cols[f"uni_fwd_{h}"])
+    if A["lane"] == "crypto" and fill == "next_open" and "o1" in A:
+        # intraday horizons on D+1: from the 01:00 UTC open to the 04:00 / 12:00 UTC open, same universe comparator
+        for lab, key in INTRADAY.items():
+            if key not in A:
+                continue
+            with np.errstate(all="ignore"):
+                fwd_all = shift_rows(A[key], 1) / shift_rows(A["o1"], 1) - 1.0
+            fwd_all[~(np.arange(n_sess) + 1 <= era_last), :] = np.nan
+            um = np.where(univ, fwd_all, np.nan)
+            uni_n = np.sum(~np.isnan(um), axis=1)
+            with np.errstate(all="ignore"):
+                uni = np.where(uni_n > 0, np.nansum(um, axis=1) / np.maximum(uni_n, 1), np.nan)
+            cols[f"fwd_{lab}"] = fwd_all[si, tj]; cols[f"uni_fwd_{lab}"] = uni[si]; cols[f"uni_n_{lab}"] = uni_n[si]
+            cols[f"excess_{lab}"] = spec.sign * (cols[f"fwd_{lab}"] - cols[f"uni_fwd_{lab}"])
     H = spec.horizon
     filled = ~np.isnan(entry) & ~np.isnan(cols[f"fwd_{H}"]) & ~np.isnan(cols[f"uni_fwd_{H}"])
     # no re-entry while held: a name held at D's close (exit session F+H > D) is skipped
@@ -200,7 +215,12 @@ def event_trades(A: dict, raw_cand: np.ndarray, spec: EventSpec, cap_mask: np.nd
     return out
 
 
-def event_summary(tr: pd.DataFrame, h: int, cost: str, sign: float = 1.0) -> dict:
+def horizons_in(tr: pd.DataFrame) -> list:
+    """Horizon labels present in a trades frame: the session grid plus any intraday labels."""
+    return [h for h in HORIZONS if f"excess_{h}" in tr] + [lab for lab in INTRADAY if f"excess_{lab}" in tr]
+
+
+def event_summary(tr: pd.DataFrame, h, cost: str, sign: float = 1.0) -> dict:
     """Statistics of the net excess at horizon h and cost level `cost` over the traded rows."""
     f = tr[tr["traded"] & tr[f"excess_{h}"].notna()]
     c = f[f"cost_{cost}"].to_numpy() if cost != "0" else np.zeros(len(f))
@@ -230,7 +250,7 @@ def event_report(trades_by_fill: dict[str, pd.DataFrame], spec: EventSpec, lane:
                  universe: str) -> pd.DataFrame:
     rows = []
     for fill, tr in trades_by_fill.items():
-        horizons = HORIZONS if fill == "next_open" else [spec.horizon]
+        horizons = horizons_in(tr) if fill == "next_open" else [spec.horizon]
         levels = COST_LEVELS[lane] if fill == "next_open" else ["0", "base"]
         periods = period_slices(tr["signal_date"], lane, era_name)
         for h in horizons:
@@ -240,7 +260,7 @@ def event_report(trades_by_fill: dict[str, pd.DataFrame], spec: EventSpec, lane:
                     if sub.empty and pname != "all":
                         continue
                     rows.append({"signal": spec.name, "lane": lane, "universe": universe, "era": era_name, "fill": fill,
-                                 "horizon": h, "decision": h == spec.horizon, "cost": cost, "period": pname,
+                                 "horizon": str(h), "decision": h == spec.horizon, "cost": cost, "period": pname,
                                  **event_summary(sub, h, cost, spec.sign)})
     return pd.DataFrame(rows)
 

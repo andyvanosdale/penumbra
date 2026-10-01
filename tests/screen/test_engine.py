@@ -157,4 +157,41 @@ def test_movers_counts_and_lifts():
     r = c[(c["kind"] == "up") & (c["horizon"] == 63)]
     assert r["names"].sum() >= 1 and (c["names"] <= c["names_eligible"]).all()
     l = movers.lifts(A, None, era, "u")
-    assert set(l["feature"]) >= {"close", "rvol_20", "cap"} and (l["events"] >= 1).all()
+    up = l[l["group"] == "up5x63"]
+    assert set(up["feature"]) >= {"close", "rvol_20", "cap"} and (up["events"] >= 1).all()
+    assert set(l["group"]) == {"up5x63", "down80_63"}
+
+
+def test_autopsy_selection_and_rule_matrix():
+    from experiments.screen import autopsy
+    lifts = pd.DataFrame([
+        {"universe": "u", "group": "up5x63", "feature": "ret_60", "events": 50, "lift_top": 2.1, "lift_bottom": 0.4},
+        {"universe": "u", "group": "up5x63", "feature": "close", "events": 50, "lift_top": 0.3, "lift_bottom": 1.9},
+        {"universe": "u", "group": "up5x63", "feature": "cap", "events": 50, "lift_top": 0.1, "lift_bottom": 3.0},
+        {"universe": "u", "group": "up5x63", "feature": "rvol_20", "events": 50, "lift_top": 1.4, "lift_bottom": 0.9},
+        {"universe": "u", "group": "up5x63", "feature": "zscore_20", "events": 50, "lift_top": 1.6, "lift_bottom": 0.9},
+        {"universe": "u", "group": "up5x63", "feature": "ret_20", "events": 60, "lift_top": 1.6, "lift_bottom": 0.9},
+    ])
+    sel = autopsy.select_features(lifts, "u", "up5x63")
+    assert [(f["feature"], f["side"]) for f in sel] == [("ret_60", "top"), ("close", "bottom"), ("ret_20", "top")]
+    assert autopsy.select_features(lifts, "u", "down80_63") == []
+    A = _tiny(n_sess=10, n_tk=3)
+    A["ret_60"] = np.tile(np.array([3.0, 1.0, 2.0]), (10, 1))
+    M = autopsy.rule_matrix(A, "ret_60", "top", None)
+    assert M[:, 0].all() and not M[:, 1].any() and not M[:, 2].any()   # rank 1.0 >= 0.8; 0.667 and 0.333 are not
+    assert not autopsy.rule_matrix(A, "ret_60", "bottom", None).any()   # ranks 1/3, 2/3, 1 are all above 0.2
+    B = {"in_universe": np.ones((4, 10), dtype=bool), "f": np.tile(np.arange(10, dtype=float), (4, 1))}
+    Mb = autopsy.rule_matrix(B, "f", "bottom", None)
+    assert Mb[:, :2].all() and not Mb[:, 2:].any()                        # ranks 0.1 and 0.2 qualify
+    B["in_universe"][:, 0] = False                                         # ranks are among the universe only
+    assert autopsy.rule_matrix(B, "f", "bottom", None)[:, 1].all()
+
+
+def test_event_trades_intraday_horizons_for_crypto():
+    A = _tiny(lane="crypto", n_sess=30)
+    A["o1"] = A["a_open"].copy(); A["o4"] = A["a_open"] * 1.02; A["o12"] = A["a_open"] * 0.99
+    raw = np.zeros(A["a_close"].shape, dtype=bool); raw[5, 2] = True
+    tr = engine.event_trades(A, raw, EventSpec("t", "long", 5), None, ("2020-01-01", "2020-12-31"))
+    assert tr.iloc[0]["fwd_i04"] == pytest.approx(0.02) and tr.iloc[0]["fwd_i12"] == pytest.approx(-0.01)
+    assert tr.iloc[0]["excess_i04"] == pytest.approx(0.0)
+    assert "126" in set(engine.event_report({"next_open": tr}, EventSpec("t", "long", 5), "crypto", "dev", "crypto")["horizon"])

@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from experiments.screen import data, engine, movers, signals, v1rule
+from experiments.screen import autopsy, data, engine, movers, signals, v1rule
 
 log = logging.getLogger("screen")
 EQ_UNIVERSES = ["smallcap", "uncapped"]
@@ -45,6 +45,8 @@ def cmd_pull(args) -> None:
         data.stage_caps()
     if args.crypto:
         data.stage_crypto(data.CR_PULL_START, data.CR_PULL_END, workers=max(args.workers, 8), need_1h=not args.no_1h)
+    if args.intraday:
+        data.stage_crypto_intraday()
 
 
 # ---------------------------------------------------------------- arrays per lane (built once)
@@ -129,10 +131,10 @@ def cmd_regress(args) -> None:
 
 
 # ---------------------------------------------------------------- run
-def _run_event(sig, A, mask, lane, universe, era_name, out: Path) -> dict:
+def _run_event(sig, A, mask, lane, universe, era_name, out: Path, raw=None, extra: dict | None = None) -> dict:
     spec = engine.EventSpec(sig.NAME, sig.DIRECTION, sig.HORIZON)
     era = engine.ERAS[lane][era_name]
-    raw = sig.candidates(A)
+    raw = sig.candidates(A) if raw is None else raw
     trades = {fill: engine.event_trades(A, raw, spec, mask, era, fill) for fill in ("next_open", "close", "next_close")}
     res = engine.event_report(trades, spec, lane, era_name, universe)
     ctl = engine.event_controls(A, raw, spec, mask, era, trades["next_open"])
@@ -140,13 +142,15 @@ def _run_event(sig, A, mask, lane, universe, era_name, out: Path) -> dict:
     res.to_csv(out / f"results_{tag}.csv", index=False)
     (out / f"controls_{tag}.json").write_text(json.dumps(ctl, indent=2, default=float))
     pd.concat(trades.values()).to_parquet(data.roots().raw / f"trades_wave1_{tag}.parquet", index=False)
-    head = res[(res["fill"] == "next_open") & (res["horizon"] == sig.HORIZON) & (res["period"] == "all")].set_index("cost")
+    head = res[(res["fill"] == "next_open") & (res["horizon"] == str(sig.HORIZON)) & (res["period"] == "all")].set_index("cost")
     hb = head.loc["base"]
     summary = {"signal": sig.NAME, "universe": universe, "era": era_name, "mode": "event", "direction": sig.DIRECTION,
                "horizon": sig.HORIZON, "trades": int(hb["trades"]), "entry_days": int(hb["entry_days"]),
                "mean_net_base_bps": float(hb["mean_net"] * 1e4), "z_base": float(hb["z"]),
                "mean_net_0_bps": float(head.loc["0", "mean_net"] * 1e4), "z_0": float(head.loc["0", "z"]),
                "mean_net_high_bps": float(head.loc["high", "mean_net"] * 1e4), **ctl}
+    if extra:
+        summary.update(extra(trades["next_open"]) if callable(extra) else extra)
     log.info("%s: %s", tag, {k: (round(v, 2) if isinstance(v, float) else v) for k, v in summary.items()})
     return summary
 
@@ -201,6 +205,51 @@ def cmd_run(args) -> None:
     print(pd.DataFrame(summaries).to_string())
 
 
+# ---------------------------------------------------------------- autopsy to rule (amendment A2)
+class _Rule:
+    MODE = "event"
+
+    def __init__(self, name, direction):
+        self.NAME, self.DIRECTION, self.HORIZON = name, direction, autopsy.DECISION_H
+
+
+def cmd_autopsy(args) -> None:
+    """Select the top-lift features from the committed lift table and run them as prospective rules."""
+    out = _out(args)
+    lifts = pd.read_csv(args.lifts)
+    lanes = Lanes()
+    selected, summaries = [], []
+    t0 = time.time()
+    for market, sel_uni, run_unis in (("equity", "uncapped", EQ_UNIVERSES), ("crypto", "crypto", ["crypto"])):
+        for group, direction in autopsy.GROUP_DIRECTION.items():
+            feats = autopsy.select_features(lifts, sel_uni, group)
+            for fdef in feats:
+                selected.append({"market": market, "selected_on": sel_uni, "group": group, "direction": direction, **fdef,
+                                 "rule": autopsy.rule_name(group, fdef["feature"])})
+            if not feats:
+                log.info("autopsy %s %s: no feature with lift >= %.1f", market, group, autopsy.LIFT_MIN)
+            for uni in run_unis:
+                A, mask, lane = lanes.arrays(uni)
+                era = engine.ERAS[lane][args.era]
+                for fdef in feats:
+                    rule = _Rule(autopsy.rule_name(group, fdef["feature"]), direction)
+                    raw = autopsy.rule_matrix(A, fdef["feature"], fdef["side"], mask)
+                    extra = lambda tr, A=A, mask=mask, era=era, group=group: autopsy.extra_metrics(A, tr, mask, era, group)  # noqa: E731
+                    s = _run_event(rule, A, mask, lane, uni, args.era, out, raw=raw, extra=extra)
+                    s.update({"feature": fdef["feature"], "side": fdef["side"], "selection_lift": fdef["lift"], "group": group})
+                    summaries.append(s)
+    pd.DataFrame(selected).to_csv(out / "a2r_selected_features.csv", index=False)
+    mp = out / f"meta_{args.era}.json"
+    meta = json.loads(mp.read_text()) if mp.exists() else {}
+    meta.setdefault("lanes", {}).update(lanes.meta())
+    meta.setdefault("runs", {})[pd.Timestamp.utcnow().isoformat()] = {"signals": "autopsy", "runtime_s": round(time.time() - t0)}
+    meta.setdefault("summaries", {}).update({f"{s['signal']}_{s['universe']}": s for s in summaries})
+    mp.write_text(json.dumps(meta, indent=2, default=float))
+    pd.DataFrame(summaries).to_csv(out / f"a2r_summary_{args.era}.csv", index=False)
+    print(pd.DataFrame(selected).to_string())
+    print(pd.DataFrame(summaries).to_string())
+
+
 # ---------------------------------------------------------------- movers
 def cmd_movers(args) -> None:
     out = _out(args)
@@ -238,12 +287,16 @@ def event_tables(out: Path, era: str) -> str:
             continue
         sig, uni = res["signal"].iloc[0], res["universe"].iloc[0]
         lane = res["lane"].iloc[0]
-        H = int(res.loc[res["decision"], "horizon"].iloc[0])
+        H = str(res.loc[res["decision"], "horizon"].iloc[0])
         ctl = json.loads((out / f"controls_{sig}_{uni}_{era}.json").read_text())
         no = res[(res["fill"] == "next_open")]
         d = no[(no["horizon"] == H) & (no["period"] == "all")].set_index("cost")
         levels = engine.COST_LEVELS[lane]
         lines.append(f"\n**{sig} / {uni} / {era} — direction {res['direction'].iloc[0] if 'direction' in res else ''}, decision horizon {H} sessions, next-open fill**\n")
+        meta = json.loads((out / f"meta_{era}.json").read_text())["summaries"].get(f"{sig}_{uni}", {})
+        if "match_rate_per_day" in meta:
+            lines.append(f"Autopsy rule on `{meta['feature']}` ({meta['side']} quintile, selection lift {meta['selection_lift']:.2f}): match rate {meta['match_rate_per_day']:.1%} of the universe per day; "
+                         f"{meta['hits']} of {meta['trades']} trades made the original 63-session move ({meta['hit_original_move']:.2%}) against a universe base rate of {meta['universe_base_rate']:.2%} (realized lift {meta['lift_realized']:.2f}).\n")
         lines.append("| candidates | held | trades | days | " + " | ".join(f"net @{c}" for c in levels) + " | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |")
         lines.append("|" + "---|" * (10 + len(levels)))
         b = d.loc["base"]
@@ -254,8 +307,11 @@ def event_tables(out: Path, era: str) -> str:
         lines.append("\nHorizon curve (next-open fill; mean excess per trade, bps; z): ")
         lines.append("| horizon | trades | gross excess | z @0 | net @base | z @base |")
         lines.append("|---|---|---|---|---|---|")
-        for h in engine.HORIZONS:
-            r0 = no[(no["horizon"] == h) & (no["period"] == "all") & (no["cost"] == "0")].iloc[0]
+        for h in [str(x) for x in engine.HORIZONS] + list(engine.INTRADAY):
+            sel0 = no[(no["horizon"] == h) & (no["period"] == "all") & (no["cost"] == "0")]
+            if sel0.empty:
+                continue
+            r0 = sel0.iloc[0]
             rb = no[(no["horizon"] == h) & (no["period"] == "all") & (no["cost"] == "base")].iloc[0]
             lines.append(f"| {h}{' *' if h == H else ''} | {int(r0['trades'])} | {_fmt_bps(r0['mean_net'])} | {_fmt_z(r0['z'])} | {_fmt_bps(rb['mean_net'])} | {_fmt_z(rb['z'])} |")
         # halves and per year at base
@@ -316,7 +372,7 @@ def interesting(s: dict) -> bool:
 def artifact_free(s: dict, res: pd.DataFrame) -> bool:
     """Graduation rule 4: sign holds without the top 10 days, placebo flat, sign holds in both halves."""
     if s["mode"] == "event":
-        d = res[(res["fill"] == "next_open") & (res["horizon"] == s["horizon"]) & (res["cost"] == "base")].set_index("period")
+        d = res[(res["fill"] == "next_open") & (res["horizon"] == str(s["horizon"])) & (res["cost"] == "base")].set_index("period")
         key = "mean_net"
     else:
         d = res[res["cost"] == "base"].set_index("period")
@@ -379,6 +435,7 @@ if __name__ == "__main__":
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pull"); p.add_argument("--equity", action="store_true"); p.add_argument("--caps", action="store_true")
     p.add_argument("--crypto", action="store_true"); p.add_argument("--no-1h", action="store_true"); p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--intraday", action="store_true")
     p.set_defaults(fn=cmd_pull)
     p = sub.add_parser("regress"); p.add_argument("--v1-results", default=None); p.add_argument("--universe", default="all")
     p.add_argument("--atol", type=float, default=5e-7); p.add_argument("--out", default=None); p.set_defaults(fn=cmd_regress)
@@ -386,6 +443,8 @@ if __name__ == "__main__":
     p.add_argument("--era", default="dev", choices=["dev", "confirm"]); p.add_argument("--out", default=None); p.set_defaults(fn=cmd_run)
     p = sub.add_parser("movers"); p.add_argument("--universe", default="all"); p.add_argument("--era", default="dev", choices=["dev"])
     p.add_argument("--out", default=None); p.set_defaults(fn=cmd_movers)
+    p = sub.add_parser("autopsy"); p.add_argument("--lifts", required=True); p.add_argument("--era", default="dev", choices=["dev", "confirm"])
+    p.add_argument("--out", default=None); p.set_defaults(fn=cmd_autopsy)
     p = sub.add_parser("tables"); p.add_argument("--out", default=None); p.set_defaults(fn=cmd_tables)
     p = sub.add_parser("ledger"); p.add_argument("--out", default=None); p.add_argument("--prereg", required=True)
     p.add_argument("--date", default=str(pd.Timestamp.utcnow().date())); p.add_argument("--entry", default="2026-10-01-wave-1-screen.md")

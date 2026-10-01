@@ -394,6 +394,32 @@ def stage_crypto(start: str = CR_PULL_START, end: str = CR_PULL_END, workers: in
     log.info("crypto done: %.0fs", time.time() - t0)
 
 
+def stage_crypto_intraday(hours=(4, 12), start: str = CR_PULL_START, end: str = CR_PULL_END) -> None:
+    """Hourly opens at the given UTC hours for the universe symbols, from the 1h zips the main
+    pull cached (a zip not on disk is fetched the same way; none is in the holdout)."""
+    check_not_holdout("crypto", end)
+    R = roots()
+    uni_syms = sorted(crypto_universe_symbols(load_crypto_1d(), start, end))
+    months = pd.period_range(start, end, freq="M").strftime("%Y-%m").tolist()
+    frames = {h: [] for h in hours}
+    for n, sym in enumerate(uni_syms, 1):
+        for ym in months:
+            df = _kline_zip(sym, "1h", ym)
+            if df is None:
+                continue
+            for h in hours:
+                frames[h].append(df[df["open_time"].dt.hour == h][["open_time", "open", "symbol"]])
+        if n % 50 == 0:
+            log.info("crypto intraday opens: %d/%d symbols", n, len(uni_syms))
+    for h in hours:
+        pd.concat(frames[h], ignore_index=True).to_parquet(R.binance / f"klines_1h_{h:02d}00.parquet", index=False)
+
+
+def load_crypto_hour_open(hour: int) -> pd.DataFrame | None:
+    p = roots().binance / f"klines_1h_{hour:02d}00.parquet"
+    return pd.read_parquet(p) if p.exists() else None
+
+
 def crypto_base(sym: str) -> str:
     return sym[:-4]
 
@@ -583,7 +609,7 @@ def _midrank_pctl_cols(a: np.ndarray, window: int) -> np.ndarray:
     return out
 
 
-def build_arrays(px: pd.DataFrame, lane: str, o1: pd.DataFrame | None = None) -> dict:
+def build_arrays(px: pd.DataFrame, lane: str, o1: pd.DataFrame | None = None, hour_opens: dict | None = None) -> dict:
     """Wide as-of arrays: row i holds data through session i's close for every column.
 
     Every array a signal may read is listed here; `tests/screen/test_shift.py` perturbs
@@ -603,6 +629,11 @@ def build_arrays(px: pd.DataFrame, lane: str, o1: pd.DataFrame | None = None) ->
         o1 = o1.assign(date=o1["open_time"].dt.normalize(), ticker=o1["symbol"]).rename(columns={"open": "o1"})
         o1 = o1.drop_duplicates(["date", "ticker"])
         A["o1"] = _wide(o1, "o1", cal, tickers)
+    for key, df in (hour_opens or {}).items():  # crypto intraday horizons: o4, o12 (amendment A1)
+        if df is None:
+            continue
+        df = df.assign(date=df["open_time"].dt.normalize(), ticker=df["symbol"]).rename(columns={"open": key}).drop_duplicates(["date", "ticker"])
+        A[key] = _wide(df, key, cal, tickers)
     C = A["a_close"]
     with np.errstate(all="ignore"):
         A["vol_ratio_20"] = A["volume"] / A["med_vol_20_prev"]
@@ -627,7 +658,7 @@ def equity_arrays(start: str, end: str, use_cache: bool = True) -> tuple[dict, d
 
 def crypto_arrays(start: str, end: str, use_cache: bool = True) -> dict:
     px = crypto_panel(start, end, use_cache)
-    A = build_arrays(px, "crypto", load_crypto_o1())
+    A = build_arrays(px, "crypto", load_crypto_o1(), {"o4": load_crypto_hour_open(4), "o12": load_crypto_hour_open(12)})
     A["panel"] = px
     return A
 

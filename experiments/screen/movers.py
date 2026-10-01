@@ -17,7 +17,8 @@ from experiments.screen.engine import era_rows
 
 UP = {1: 2.0, 21: 3.0, 63: 5.0, 252: 10.0}
 DOWN = {1: 0.5, 21: 1.0 / 3.0, 63: 0.2, 252: 0.1}
-LIFT_H, LIFT_MULT = 63, 5.0
+LIFT_H = 63
+LIFT_GROUPS = {"up5x63": (5.0, True), "down80_63": (0.2, False)}   # (threshold, up?)
 LIFT_FEATURES = ["close", "med_dv_20_prev", "rvol_20", "close_to_high_250", "ret_20", "ret_60",
                  "vol_pctl_250", "zscore_20", "shock", "cap"]
 
@@ -58,9 +59,14 @@ def _pctl_within_day(M: np.ndarray, univ: np.ndarray) -> np.ndarray:
 
 
 def lifts(A: dict, cap_mask, era: tuple[str, str], universe: str) -> pd.DataFrame:
+    return pd.concat([_lifts_group(A, cap_mask, era, universe, g) for g in LIFT_GROUPS], ignore_index=True)
+
+
+def _lifts_group(A: dict, cap_mask, era: tuple[str, str], universe: str, group: str) -> pd.DataFrame:
+    thr, up = LIFT_GROUPS[group]
     univ = A["in_universe"] if cap_mask is None else (A["in_universe"] & cap_mask[None, :])
     in_era, era_last = era_rows(A["cal"], era)
-    E = _events(A, univ, in_era, era_last, LIFT_H, LIFT_MULT, True)
+    E = _events(A, univ, in_era, era_last, LIFT_H, thr, up)
     years = pd.DatetimeIndex(A["cal"]).year
     # first qualifying D per name-year
     first = np.zeros_like(E)
@@ -84,7 +90,7 @@ def lifts(A: dict, cap_mask, era: tuple[str, str], universe: str) -> pd.DataFram
         p = P[prev, tj]
         p = p[~np.isnan(p)]
         n = len(p)
-        out.append({"universe": universe, "feature": f, "events": int(n),
+        out.append({"universe": universe, "group": group, "feature": f, "events": int(n),
                     "share_top_quintile": float((p >= 0.8).mean()) if n else np.nan,
                     "share_bottom_quintile": float((p <= 0.2).mean()) if n else np.nan,
                     "lift_top": float((p >= 0.8).mean() / 0.2) if n else np.nan,
@@ -110,9 +116,10 @@ def counts_markdown(df: pd.DataFrame) -> str:
 
 def lifts_markdown(df: pd.DataFrame) -> str:
     lines = []
-    for uni, g in df.groupby("universe", sort=False):
+    names = {"up5x63": "5× over 63 sessions", "down80_63": "−80% over 63 sessions"}
+    for (uni, grp), g in df.groupby(["universe", "group"], sort=False):
         n = int(g["events"].max()) if len(g) else 0
-        lines.append(f"\n**{uni}: 5× over 63 sessions, {n} name-years; within-day percentile of the feature at D−1 among the universe on D−1**\n")
+        lines.append(f"\n**{uni}: {names[grp]}, {n} name-years; within-day percentile of the feature at D−1 among the universe on D−1**\n")
         lines.append("| feature | lift top quintile | lift bottom quintile | median percentile | n |")
         lines.append("|---|---|---|---|---|")
         for _, r in g.iterrows():
