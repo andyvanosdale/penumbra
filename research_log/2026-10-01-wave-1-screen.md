@@ -275,6 +275,63 @@ the long signals and work against the short ones; a null on a long signal here i
 conclusive, a null on a short signal is conservative, and a positive on either is only
 a reason to run the confirm era.
 
+##### Amendment 2026-10-01 (before any data was read; the locked text above is unchanged)
+
+Two additions from the owner's brief extension, received after the pre-registration
+commit `af23489` and before any bar of this wave's data was read (the pulls were still
+running). Appended, not edited in.
+
+**A1. Horizon grid widened.** Forward returns are stored and reported at 1, 5, 21, 63,
+126 and 252 sessions from the fill for every candidate event in every event-mode signal
+(1a, 1b, 1c and the autopsy-to-rule runs below), each with its same-day universe mean.
+The decision horizons stay as pre-registered; the added horizons are horizon curve
+only. The era-boundary rule applies per horizon (a 252-session label is null for every
+signal in the era's last year, and the trade count per horizon is reported with it).
+Crypto adds two intraday horizons from the cached 1h klines, no new download: the return
+from the 01:00 UTC fill on D+1 to the 04:00 UTC hourly open (`i04`) and to the 12:00 UTC
+hourly open (`i12`) on D+1, with the same-day universe comparator on the same prices.
+Equities: intraday horizons need minute bars and are deferred to a separate pre-registered
+intraday wave; none are pulled in this run.
+
+**A2. Autopsy to rule (step D2).** Closes the loop from the extreme-movers lift table to
+prospective rules, under the proposal's wall between hypothesis generation and test.
+
+- *Groups.* The 63-session 5× group (up) and the 63-session −80% group (ratio ≤ 0.20,
+  down). The lift table is produced for both (the down group's lifts are added to the
+  movers study, same definition: within-day percentile of each as-of feature at D−1
+  among the universe on D−1, first qualifying D per name-year).
+- *Feature selection (locked procedure, applied after the lift table is written and
+  committed).* From the `uncapped` lift table for equities and the `crypto` lift table
+  for crypto, the three features with the highest max(lift_top, lift_bottom), each
+  ≥ 1.5; fewer if fewer qualify; none if none does. Current market cap is excluded from
+  selection: it is today's cap, not an as-of feature. Ties broken by event count, then
+  alphabetically.
+- *Rule.* On session D, a universe-eligible name is a candidate when the feature's
+  within-day percentile rank among the universe on D (data through D's close, the same
+  rank the lift used) is ≥ 0.8 if the lift came from the top quintile, or ≤ 0.2 if from
+  the bottom quintile. The cut is the one that produced the lift and is locked before
+  the run. Direction: long for the up group, short / long-avoid for the down group.
+  Decision horizon 63 sessions (the move horizon); 5 and 21 sessions and the rest of the
+  grid are reported. Equity rules run on `smallcap` and `uncapped`; crypto rules on
+  `crypto`. Fill, comparator, cost schedule, no re-entry while held, placebo (lag 20),
+  planted +50 bps and the statistic are the common protocol. One ledger row per rule and
+  universe, named `a2r-up-<feature>` / `a2r-down-<feature>`; at most three per direction
+  per market (the catalog's cap, applied per direction).
+- *Reported per rule.* The match rate per day (mean over era sessions of candidates
+  divided by universe size); the forward excess at every horizon; the hit rate for the
+  original move (share of traded candidates whose 63-session forward return is ≥ +400%
+  for the up rules, ≤ −80% for the down rules) against the universe base rate (mean over
+  days of the share of the universe with the same outcome); whether the basket beats the
+  universe net of the base schedule (mean net excess per trade and the day-clustered z at
+  63 sessions).
+- *Interesting threshold and confirm.* The event-mode threshold above (z ≥ 3.0 at base
+  cost over ≥ 100 entry days and ≥ 500 trades, mean net ≥ 50 bps at base, > 0 at high).
+  The confirm era is run only for rules that clear it.
+- *Stated up front.* The features are selected on the dev era and the rules are first
+  run on the same dev era, so a dev result for an autopsy-derived rule is in-sample by
+  construction and is not evidence; only the confirm era is. The subsection "Autopsy to
+  rule" says which features describe past movers but do not predict.
+
 #### Run details
 
 *(filled in as each step is committed; nothing above this line changes)*
