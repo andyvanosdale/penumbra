@@ -195,3 +195,22 @@ def test_event_trades_intraday_horizons_for_crypto():
     assert tr.iloc[0]["fwd_i04"] == pytest.approx(0.02) and tr.iloc[0]["fwd_i12"] == pytest.approx(-0.01)
     assert tr.iloc[0]["excess_i04"] == pytest.approx(0.0)
     assert "126" in set(engine.event_report({"next_open": tr}, EventSpec("t", "long", 5), "crypto", "dev", "crypto")["horizon"])
+
+
+def test_crypto_symbol_segmented_at_kline_gaps():
+    d1, h1 = crypto_klines(n_symbols=3, n_days=120)
+    sym = "C00USDT"
+    m = (d1["symbol"] == sym) & (d1["open_time"] >= "2019-02-10") & (d1["open_time"] <= "2019-02-20")
+    d1 = d1[~m].copy()
+    d1.loc[(d1["symbol"] == sym) & (d1["open_time"] > "2019-02-20"), ["open", "high", "low", "close"]] *= 1000.0  # a redenomination
+    px = data.crypto_features(d1, "2019-01-01", "2019-12-31")
+    assert set(px.loc[px["symbol"] == sym, "ticker"]) == {sym, sym + "~2"}
+    seg2 = px[px["ticker"] == sym + "~2"]
+    assert seg2["date"].min() == pd.Timestamp("2019-02-21") and seg2["ret_1"].iloc[0] != seg2["ret_1"].iloc[0]  # NaN: no return across the gap
+    assert not seg2["full_hist"].iloc[:29].any()                     # the new instrument re-earns its 30-day history
+    A = data.build_arrays(px, "crypto", h1)
+    j1, j2 = A["tickers"].get_loc(sym), A["tickers"].get_loc(sym + "~2")
+    i = A["cal"].get_loc(pd.Timestamp("2019-03-01"))
+    assert np.isnan(A["o1"][i, j1]) and not np.isnan(A["o1"][i, j2])  # the hourly open follows the instrument
+    px0 = data.crypto_features(d1, "2019-01-01", "2019-12-31", segment_gaps=False)
+    assert set(px0.loc[px0["symbol"] == sym, "ticker"]) == {sym}

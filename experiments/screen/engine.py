@@ -259,7 +259,7 @@ def event_report(trades_by_fill: dict[str, pd.DataFrame], spec: EventSpec, lane:
                     sub = tr[m]
                     if sub.empty and pname != "all":
                         continue
-                    rows.append({"signal": spec.name, "lane": lane, "universe": universe, "era": era_name, "fill": fill,
+                    rows.append({"signal": spec.name, "lane": lane, "universe": universe, "era": era_name, "fill": fill, "direction": spec.direction,
                                  "horizon": str(h), "decision": h == spec.horizon, "cost": cost, "period": pname,
                                  **event_summary(sub, h, cost, spec.sign)})
     return pd.DataFrame(rows)

@@ -51,8 +51,8 @@ def cmd_pull(args) -> None:
 
 # ---------------------------------------------------------------- arrays per lane (built once)
 class Lanes:
-    def __init__(self, eq_window=None, cr_window=None):
-        self._eq = None; self._cr = None
+    def __init__(self, eq_window=None, cr_window=None, segment_gaps: bool = True):
+        self._eq = None; self._cr = None; self.segment_gaps = segment_gaps
         self.eq_window = eq_window or (data.EQ_PULL_START, data.EQ_PULL_END)
         self.cr_window = cr_window or (data.CR_PULL_START, data.CR_PULL_END)
 
@@ -66,7 +66,7 @@ class Lanes:
     def crypto(self):
         if self._cr is None:
             t0 = time.time()
-            self._cr = data.crypto_arrays(*self.cr_window)
+            self._cr = data.crypto_arrays(*self.cr_window, segment_gaps=self.segment_gaps)
             log.info("crypto arrays %s..%s: %d days x %d pairs, %.0fs (calendar gaps %d)", *self.cr_window, len(self._cr["cal"]), len(self._cr["tickers"]), time.time() - t0, data.calendar_gaps(self._cr))
         return self._cr
 
@@ -97,7 +97,7 @@ class Lanes:
 # ---------------------------------------------------------------- regress
 def cmd_regress(args) -> None:
     """Run the v1 rule through the new data layer on the v1 windows and compare with the original script's results CSV."""
-    lanes = Lanes(("2015-01-01", "2023-12-31"), ("2018-01-01", "2022-12-31"))
+    lanes = Lanes(("2015-01-01", "2023-12-31"), ("2018-01-01", "2022-12-31"), segment_gaps=False)  # the v1 script did not segment
     out = _out(args)
     frames = []
     for uni in (args.universe.split(",") if args.universe != "all" else ALL_UNIVERSES):
@@ -282,7 +282,7 @@ def event_tables(out: Path, era: str) -> str:
     lines = []
     files = sorted(out.glob(f"results_*_{era}.csv"))
     for f in files:
-        res = pd.read_csv(f, dtype={"cost": str, "period": str})
+        res = pd.read_csv(f, dtype={"cost": str, "period": str, "horizon": str})
         if "fill" not in res.columns:
             continue
         sig, uni = res["signal"].iloc[0], res["universe"].iloc[0]
@@ -336,7 +336,7 @@ def event_tables(out: Path, era: str) -> str:
 def rank_tables(out: Path, era: str) -> str:
     lines = []
     for f in sorted(out.glob(f"results_1[de]_*_{era}.csv")):
-        res = pd.read_csv(f, dtype={"cost": str, "period": str})
+        res = pd.read_csv(f, dtype={"cost": str, "period": str, "horizon": str})
         sig, uni = res["signal"].iloc[0], res["universe"].iloc[0]
         ctl = json.loads((out / f"controls_{sig}_{uni}_{era}.json").read_text())
         d = res[res["period"] == "all"].set_index("cost")
@@ -378,7 +378,7 @@ def artifact_free(s: dict, res: pd.DataFrame) -> bool:
         d = res[res["cost"] == "base"].set_index("period")
         key = "ann_excess"
     sign = np.sign(d.loc["all", key])
-    return (np.sign(d.loc["all", "z_wo_top10"]) == sign and abs(s["placebo_z_base"]) < 2.0
+    return (np.sign(d.loc["all", "z_wo_top10"]) == sign and abs(s["placebo_z_0"]) < 2.0
             and np.sign(d.loc["half1", key]) == sign and np.sign(d.loc["half2", key]) == sign)
 
 
@@ -392,7 +392,7 @@ def cmd_ledger(args) -> None:
     for key, s in dev.items():
         sig = s["signal"]
         base, variant = (sig.split("-", 1) + ["—"])[:2]
-        res = pd.read_csv(out / f"results_{sig}_{s['universe']}_dev.csv", dtype={"cost": str, "period": str})
+        res = pd.read_csv(out / f"results_{sig}_{s['universe']}_dev.csv", dtype={"cost": str, "period": str, "horizon": str})
         if s["mode"] == "event":
             net, n = f"{s['mean_net_base_bps']:+.0f} bps", f"{s['trades']} / {s['entry_days']}"
         else:

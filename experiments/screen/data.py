@@ -433,7 +433,7 @@ def crypto_eligible_base(base: str) -> bool:
 
 
 def crypto_universe_symbols(d1: pd.DataFrame, start: str, end: str) -> set[str]:
-    panel = crypto_features(d1, start, end)
+    panel = crypto_features(d1, start, end, segment_gaps=False)
     return set(panel.loc[panel["in_universe"], "symbol"].unique())
 
 
@@ -504,13 +504,26 @@ def equity_features(px: pd.DataFrame, start: str, end: str) -> pd.DataFrame:
     return px.reset_index(drop=True)
 
 
-def crypto_features(d1: pd.DataFrame, start: str, end: str) -> pd.DataFrame:
+GAP_DAYS = 3  # a longer gap in a pair's daily klines ends the instrument (token swaps and relists reuse the symbol)
+
+
+def segment_symbols(px: pd.DataFrame) -> pd.Series:
+    """Instrument id per bar: the symbol, suffixed '~2', '~3', ... for the bars after each gap of more
+    than GAP_DAYS days. Binance keeps the symbol across token swaps, redenominations and relists
+    (LUNAUSDT 2022-05, COCOSUSDT 2021-01, VENUSDT 2018-10, ...), so a price path across such a
+    gap is not a return anyone could earn. `px` must be sorted by symbol and date."""
+    gap = (px["date"] - px.groupby("symbol")["date"].shift(1)).dt.days
+    seg = (gap > GAP_DAYS).groupby(px["symbol"]).cumsum()
+    return np.where(seg == 0, px["symbol"], px["symbol"] + "~" + (seg + 1).astype(str))
+
+
+def crypto_features(d1: pd.DataFrame, start: str, end: str, segment_gaps: bool = True) -> pd.DataFrame:
     px = d1.rename(columns={"open_time": "date"})[["date", "symbol", "open", "high", "low", "close", "volume", "quote_volume"]].copy()
     px["date"] = px["date"].dt.normalize()
     px = px[(px["date"] >= start) & (px["date"] <= end)]
     px = px[px["symbol"].map(lambda s: crypto_eligible_base(crypto_base(s)))]
     px = px[(px["close"] > 0) & (px["open"] > 0) & (px["low"] > 0) & (px["high"] > 0)].sort_values(["symbol", "date"]).reset_index(drop=True)
-    px["ticker"] = px["symbol"]
+    px["ticker"] = segment_symbols(px) if segment_gaps else px["symbol"]
     px["a_open"], px["a_high"], px["a_low"], px["a_close"] = px["open"], px["high"], px["low"], px["close"]
     px["dollar_vol"] = px["quote_volume"]
     g = px.groupby("ticker", sort=False)
@@ -559,12 +572,12 @@ def equity_panel(start: str, end: str, use_cache: bool = True) -> pd.DataFrame:
     return px
 
 
-def crypto_panel(start: str, end: str, use_cache: bool = True) -> pd.DataFrame:
+def crypto_panel(start: str, end: str, use_cache: bool = True, segment_gaps: bool = True) -> pd.DataFrame:
     R = roots()
-    p = R.cache / f"crypto_panel_{start}_{end}_{PANEL_VERSION}.parquet"
+    p = R.cache / f"crypto_panel_{start}_{end}_{PANEL_VERSION}{'' if segment_gaps else '_nosegment'}.parquet"
     if use_cache and p.exists():
         return pd.read_parquet(p)
-    px = crypto_features(load_crypto_1d(), start, end)
+    px = crypto_features(load_crypto_1d(), start, end, segment_gaps)
     px.to_parquet(p, index=False)
     return px
 
@@ -625,15 +638,19 @@ def build_arrays(px: pd.DataFrame, lane: str, o1: pd.DataFrame | None = None, ho
         A[c] = _wide(px, c, cal, tickers)
     A["in_universe"] = _wide(px, "in_universe", cal, tickers) == 1.0
     A["top20"] = (_wide(px, "top20", cal, tickers) == 1.0) if "top20" in px else np.zeros_like(A["in_universe"])
+    ids = px[["date", "symbol", "ticker"]] if "symbol" in px else None
+
+    def _hourly(df: pd.DataFrame, key: str) -> np.ndarray:
+        # the hourly open on a UTC day belongs to the instrument that owns that day's daily bar
+        df = df.assign(date=df["open_time"].dt.normalize()).rename(columns={"open": key})
+        df = df.merge(ids, on=["date", "symbol"], how="inner") if ids is not None else df.assign(ticker=df["symbol"])
+        return _wide(df.drop_duplicates(["date", "ticker"]), key, cal, tickers)
+
     if o1 is not None:  # crypto: open of the 01:00 UTC 1h kline, aligned to the UTC day
-        o1 = o1.assign(date=o1["open_time"].dt.normalize(), ticker=o1["symbol"]).rename(columns={"open": "o1"})
-        o1 = o1.drop_duplicates(["date", "ticker"])
-        A["o1"] = _wide(o1, "o1", cal, tickers)
+        A["o1"] = _hourly(o1, "o1")
     for key, df in (hour_opens or {}).items():  # crypto intraday horizons: o4, o12 (amendment A1)
-        if df is None:
-            continue
-        df = df.assign(date=df["open_time"].dt.normalize(), ticker=df["symbol"]).rename(columns={"open": key}).drop_duplicates(["date", "ticker"])
-        A[key] = _wide(df, key, cal, tickers)
+        if df is not None:
+            A[key] = _hourly(df, key)
     C = A["a_close"]
     with np.errstate(all="ignore"):
         A["vol_ratio_20"] = A["volume"] / A["med_vol_20_prev"]
@@ -656,8 +673,8 @@ def equity_arrays(start: str, end: str, use_cache: bool = True) -> tuple[dict, d
     return A, {"smallcap": small, "uncapped": None}
 
 
-def crypto_arrays(start: str, end: str, use_cache: bool = True) -> dict:
-    px = crypto_panel(start, end, use_cache)
+def crypto_arrays(start: str, end: str, use_cache: bool = True, segment_gaps: bool = True) -> dict:
+    px = crypto_panel(start, end, use_cache, segment_gaps)
     A = build_arrays(px, "crypto", load_crypto_o1(), {"o4": load_crypto_hour_open(4), "o12": load_crypto_hour_open(12)})
     A["panel"] = px
     return A
