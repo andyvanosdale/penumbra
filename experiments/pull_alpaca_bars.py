@@ -52,7 +52,7 @@ import os
 import re
 import sys
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -68,7 +68,7 @@ BATCH_SYMBOLS = 50
 REQUESTS_PER_SECOND = 3.0
 
 # Same filters as experiments/screen_free_data.py, so the universes match.
-COMMON_RE = re.compile(r"common stock|common shares|ordinary shares|class [a-c] (common|ordinary|shares)", re.I)
+COMMON_RE = re.compile(r"common stock|common shares|ordinary shares|class [a-c] (?:common|ordinary|shares)", re.I)
 EXCL_RE = re.compile(
     r"warrant|\bright|\bunit|preferred|preference|depositary|\bads\b|\badr\b|\bnote|debenture|"
     r"\bbond|trust preferred|\bfund\b|\betf\b|\betn\b|closed.end|capital securities|"
@@ -102,6 +102,13 @@ def headers() -> dict[str, str]:
 
 
 # ---------------------------------------------------------------- HTTP with pacing
+class InvalidSymbol(Exception):
+    """Alpaca rejected a symbol in the batch; the message carries the symbol."""
+
+
+SKIPPED: set[str] = set()
+
+
 class Client:
     def __init__(self) -> None:
         self.h = headers()
@@ -132,6 +139,8 @@ class Client:
             if r.status_code >= 500:
                 time.sleep(2 ** attempt)
                 continue
+            if r.status_code == 400 and "invalid symbol" in r.text:
+                raise InvalidSymbol(r.text.split("invalid symbol:", 1)[1].strip(' "}'))
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:300]}")
         raise RuntimeError("gave up after 8 attempts")
 
@@ -158,13 +167,18 @@ def build_universe(out: Path) -> list[str]:
     (out / "universe").mkdir(parents=True, exist_ok=True)
     df.to_csv(out / "universe" / "common_stock_list.csv", index=False)
     log(f"universe: {len(df)} common stocks from the Nasdaq Trader directory (current listing; survivorship-biased)")
-    return df["symbol"].tolist()
+    return [alpaca_symbol(s) for s in df["symbol"]]
+
+
+def alpaca_symbol(sym: str) -> str:
+    """Alpaca writes share classes with a dot (BRK.B); the screen's list uses the yfinance dash form."""
+    return sym.replace("-", ".")
 
 
 def read_symbols(path: Path) -> list[str]:
     df = pd.read_csv(path, dtype=str)
     col = "symbol" if "symbol" in df.columns else df.columns[0]
-    syms = sorted({s.strip() for s in df[col].dropna() if s.strip()})
+    syms = sorted({alpaca_symbol(s.strip()) for s in df[col].dropna() if s.strip()})
     log(f"universe: {len(syms)} symbols from {path}")
     return syms
 
@@ -179,6 +193,25 @@ def months(start: date, end: date):
 
 
 def pull_batch(c: Client, symbols: list[str], timeframe: str, start: date, end: date) -> pd.DataFrame:
+    symbols = [s for s in symbols if s not in SKIPPED]
+    while symbols:
+        try:
+            return _pull_batch(c, symbols, timeframe, start, end)
+        except InvalidSymbol as e:
+            bad = str(e)
+            if bad not in symbols:
+                raise
+            log(f"Alpaca does not know {bad}; skipping it for the rest of the pull")
+            SKIPPED.add(bad)
+            symbols = [s for s in symbols if s != bad]
+    return _empty()
+
+
+def _empty() -> pd.DataFrame:
+    return pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count", "vwap"])
+
+
+def _pull_batch(c: Client, symbols: list[str], timeframe: str, start: date, end: date) -> pd.DataFrame:
     params = {
         "symbols": ",".join(symbols),
         "timeframe": timeframe,
@@ -204,7 +237,7 @@ def pull_batch(c: Client, symbols: list[str], timeframe: str, start: date, end: 
         if not token:
             break
     if not frames:
-        return pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count", "vwap"])
+        return _empty()
     df = pd.concat(frames, ignore_index=True)
     df = df.rename(columns={"t": "ts", "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume", "n": "trade_count", "vw": "vwap"})
     df["ts"] = pd.to_datetime(df["ts"], utc=True)
@@ -255,10 +288,13 @@ def run(args: argparse.Namespace) -> None:
             df.to_parquet(path, index=False)
             rows_total += len(df)
             with manifest.open("a") as f:
-                f.write(json.dumps({"file": rel, "month": ym, "batch": bi, "symbols": batch, "rows": len(df),
-                                    "sha256": sha256(path), "pulled_at": datetime.utcnow().isoformat() + "Z"}) + "\n")
+                f.write(json.dumps({"file": rel, "month": ym, "batch": bi, "symbols": [s for s in batch if s not in SKIPPED], "rows": len(df),
+                                    "sha256": sha256(path), "pulled_at": datetime.now(timezone.utc).isoformat()}) + "\n")
         elapsed = time.monotonic() - t0
         log(f"{ym} done ({mi}/{len(plan)}): {rows_total:,} rows so far, {c.requests} requests, {elapsed/60:.1f} min elapsed")
+    if SKIPPED:
+        (out / "universe" / "skipped_symbols.json").write_text(json.dumps(sorted(SKIPPED), indent=2))
+        log(f"{len(SKIPPED)} symbols unknown to Alpaca were skipped; list in universe/skipped_symbols.json")
     log(f"finished: {rows_total:,} new rows; manifest at {manifest}")
 
 
