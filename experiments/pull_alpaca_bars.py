@@ -148,8 +148,8 @@ class Client:
 # ---------------------------------------------------------------- universe
 def build_universe(out: Path) -> list[str]:
     ua = {"User-Agent": "penumbra-pull/1.0"}
-    nq = pd.read_csv(io.StringIO(requests.get(NASDAQ_LISTED, headers=ua, timeout=60).text), sep="|", dtype=str).iloc[:-1]
-    ot = pd.read_csv(io.StringIO(requests.get(OTHER_LISTED, headers=ua, timeout=60).text), sep="|", dtype=str).iloc[:-1]
+    nq = pd.read_csv(io.StringIO(requests.get(NASDAQ_LISTED, headers=ua, timeout=60).text), sep="|", dtype=str, keep_default_na=False).iloc[:-1]
+    ot = pd.read_csv(io.StringIO(requests.get(OTHER_LISTED, headers=ua, timeout=60).text), sep="|", dtype=str, keep_default_na=False).iloc[:-1]
     nq = nq[(nq["Test Issue"] == "N") & (nq["ETF"] == "N")]
     nq = nq[~nq["Symbol"].str.contains(r"[\$\.\^]", regex=True, na=False)]
     nq = nq.assign(exchange="NASDAQ", symbol=nq["Symbol"].str.strip(), name=nq["Security Name"].str.strip())
@@ -163,7 +163,7 @@ def build_universe(out: Path) -> list[str]:
     df = pd.concat([nq[["symbol", "name", "exchange"]], ot[["symbol", "name", "exchange"]]], ignore_index=True)
     df = df[df["name"].str.contains(COMMON_RE, regex=True, na=False)]
     df = df[~df["name"].str.contains(EXCL_RE, regex=True, na=False)]
-    df = df.drop_duplicates("symbol").sort_values("symbol").reset_index(drop=True)
+    df = df[df["symbol"].str.len() > 0].drop_duplicates("symbol").sort_values("symbol").reset_index(drop=True)
     (out / "universe").mkdir(parents=True, exist_ok=True)
     df.to_csv(out / "universe" / "common_stock_list.csv", index=False)
     log(f"universe: {len(df)} common stocks from the Nasdaq Trader directory (current listing; survivorship-biased)")
@@ -176,7 +176,7 @@ def alpaca_symbol(sym: str) -> str:
 
 
 def read_symbols(path: Path) -> list[str]:
-    df = pd.read_csv(path, dtype=str)
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
     col = "symbol" if "symbol" in df.columns else df.columns[0]
     syms = sorted({alpaca_symbol(s.strip()) for s in df[col].dropna() if s.strip()})
     log(f"universe: {len(syms)} symbols from {path}")
