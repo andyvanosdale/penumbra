@@ -38,6 +38,13 @@ What it does:
     and two common stocks, then exits; run it before a long pull.
   * Holdout: the end date is capped at 2023-12-31 (spec/03). --allow-holdout
     overrides it; do not use that for the screen.
+  * Pause and resume: Ctrl-C once finishes the batch in flight, writes it, and stops
+    cleanly; re-running the same command resumes at the next batch (a second Ctrl-C
+    stops at once; the interrupted batch is re-pulled on resume). To hold the pull
+    without stopping it, create the file OUT/PAUSE from another terminal
+    (`touch ~/penumbra-data/alpaca/PAUSE`); the script waits, checking every 10 s,
+    and continues when the file is removed. `--max-minutes N` stops cleanly after N
+    minutes, for running in time boxes.
   * Rate limit: the free data plan allows 200 requests per minute. The script
     paces itself at 3 per second and backs off on 429.
 
@@ -54,6 +61,7 @@ import io
 import json
 import os
 import re
+import signal
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -301,6 +309,33 @@ def probe() -> None:
     log("choose --start from the row for the timeframe you will pull; a month with only a handful of bars is not usable history")
 
 
+class StopRequested(Exception):
+    pass
+
+
+STOP = {"requested": False}
+
+
+def _on_sigint(signum, frame):  # noqa: ARG001
+    if STOP["requested"]:
+        log("second Ctrl-C: stopping now; the batch in flight will be re-pulled on resume")
+        raise KeyboardInterrupt
+    STOP["requested"] = True
+    log("Ctrl-C: finishing the batch in flight, then stopping; re-run the same command to resume")
+
+
+def wait_if_paused(out: Path) -> None:
+    pause = out / "PAUSE"
+    if not pause.exists():
+        return
+    log(f"paused: remove {pause} to continue (checking every 10 s)")
+    while pause.exists():
+        time.sleep(10)
+        if STOP["requested"]:
+            raise StopRequested
+    log("resumed")
+
+
 def run(args: argparse.Namespace) -> None:
     out = Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
@@ -322,6 +357,7 @@ def run(args: argparse.Namespace) -> None:
         sys.exit(f"nothing to pull: data begins {first} and the end date is {end}")
     manifest = out / "manifest.jsonl"
     done = {json.loads(l)["file"] for l in manifest.read_text().splitlines()} if manifest.exists() else set()
+    signal.signal(signal.SIGINT, _on_sigint)
     t0 = time.monotonic()
     rows_total = 0
     plan = list(months(start, end))
@@ -333,6 +369,14 @@ def run(args: argparse.Namespace) -> None:
             rel = f"bars/{args.timeframe}/{ym}/batch_{bi:03d}.parquet"
             if rel in done:
                 continue
+            try:
+                wait_if_paused(out)
+            except StopRequested:
+                log(f"stopped while paused after {rows_total:,} new rows; re-run the same command to resume")
+                return
+            if STOP["requested"] or (args.max_minutes and time.monotonic() - t0 > args.max_minutes * 60):
+                log(f"stopped cleanly after {rows_total:,} new rows ({c.requests} requests); re-run the same command to resume")
+                return
             df = pull_batch(c, batch, args.timeframe, m_start, m_end)
             path = out / rel
             df.to_parquet(path, index=False)
@@ -367,6 +411,7 @@ def main() -> None:
     ap.add_argument("--end", default="2023-12-31")
     ap.add_argument("--symbols-file", help="CSV with a `symbol` column; default builds the screen's universe")
     ap.add_argument("--allow-holdout", action="store_true", help="permit end dates in the holdout era (not for the screen)")
+    ap.add_argument("--max-minutes", type=float, default=0, help="stop cleanly after this many minutes (0 = no limit)")
     args = ap.parse_args()
     if args.env_file:
         load_env_file(Path(args.env_file).expanduser())
