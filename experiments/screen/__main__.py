@@ -304,6 +304,65 @@ def rank_tables(out: Path, era: str) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------- ledger
+def interesting(s: dict) -> bool:
+    """The pre-registered 'interesting' threshold (graduation rules 1 and 2) on a run summary."""
+    if s["mode"] == "event":
+        return (s["z_base"] >= 3.0 and s["entry_days"] >= 100 and s["trades"] >= 500
+                and s["mean_net_base_bps"] >= 50 and s["mean_net_high_bps"] > 0)
+    return (s["z_base"] >= 3.0 and s["weeks"] >= 36 and s["ann_excess_base_pp"] >= 5 and s["ann_excess_high_pp"] > 0)
+
+
+def artifact_free(s: dict, res: pd.DataFrame) -> bool:
+    """Graduation rule 4: sign holds without the top 10 days, placebo flat, sign holds in both halves."""
+    if s["mode"] == "event":
+        d = res[(res["fill"] == "next_open") & (res["horizon"] == s["horizon"]) & (res["cost"] == "base")].set_index("period")
+        key = "mean_net"
+    else:
+        d = res[res["cost"] == "base"].set_index("period")
+        key = "ann_excess"
+    sign = np.sign(d.loc["all", key])
+    return (np.sign(d.loc["all", "z_wo_top10"]) == sign and abs(s["placebo_z_base"]) < 2.0
+            and np.sign(d.loc["half1", key]) == sign and np.sign(d.loc["half2", key]) == sign)
+
+
+def cmd_ledger(args) -> None:
+    from experiments.screen import ledger
+    out = _out(args)
+    dev = json.loads((out / "meta_dev.json").read_text())["summaries"]
+    cp = out / "meta_confirm.json"
+    conf = json.loads(cp.read_text())["summaries"] if cp.exists() else {}
+    rows = []
+    for key, s in dev.items():
+        sig = s["signal"]
+        base, variant = (sig.split("-", 1) + ["—"])[:2]
+        res = pd.read_csv(out / f"results_{sig}_{s['universe']}_dev.csv", dtype={"cost": str, "period": str})
+        if s["mode"] == "event":
+            net, n = f"{s['mean_net_base_bps']:+.0f} bps", f"{s['trades']} / {s['entry_days']}"
+        else:
+            net, n = f"{s['ann_excess_base_pp']:+.1f} pp", f"{s['weeks']} wk"
+        hot = interesting(s)
+        verdict = "confirm" if hot else "null"
+        cz, cnet = "—", "—"
+        if hot and key in conf:
+            c = conf[key]
+            cz = f"{c['z_base']:+.2f}"
+            cnet = f"{c['ann_excess_base_pp']:+.1f} pp" if c["mode"] == "rank" else f"{c['mean_net_base_bps']:+.0f} bps"
+            same_sign = np.sign(c["z_base"]) == np.sign(s["z_base"])
+            if not artifact_free(s, res):
+                verdict = "artifact"
+            elif same_sign and c["z_base"] >= 1.5:
+                verdict = "graduate"
+            else:
+                verdict = "fails confirm"
+        rows.append({"date": args.date, "signal": base, "variant": variant, "universe": s["universe"], "pre_reg_commit": args.prereg,
+                     "mode": s["mode"] + (f" {s['direction']}" if s["mode"] == "event" else ""), "decision_horizon": f"{s['horizon']}{'d' if s['mode'] == 'rank' else 's'}",
+                     "dev_z": f"{s['z_base']:+.2f}", "dev_mean_net": net, "dev_n": n, "confirm_z": cz, "confirm_mean_net": cnet,
+                     "verdict": verdict, "entry": args.entry})
+    df = ledger.upsert(rows)
+    print(df.to_string())
+
+
 def cmd_tables(args) -> None:
     out = _out(args)
     for era in ("dev", "confirm"):
@@ -328,5 +387,8 @@ if __name__ == "__main__":
     p = sub.add_parser("movers"); p.add_argument("--universe", default="all"); p.add_argument("--era", default="dev", choices=["dev"])
     p.add_argument("--out", default=None); p.set_defaults(fn=cmd_movers)
     p = sub.add_parser("tables"); p.add_argument("--out", default=None); p.set_defaults(fn=cmd_tables)
+    p = sub.add_parser("ledger"); p.add_argument("--out", default=None); p.add_argument("--prereg", required=True)
+    p.add_argument("--date", default=str(pd.Timestamp.utcnow().date())); p.add_argument("--entry", default="2026-10-01-wave-1-screen.md")
+    p.set_defaults(fn=cmd_ledger)
     a = ap.parse_args()
     a.fn(a)
