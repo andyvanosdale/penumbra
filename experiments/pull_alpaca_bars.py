@@ -42,15 +42,15 @@ What it does:
       --status   per-month table of batches pulled, rows, and whether a pause is set
       --verify   check every manifest entry's file exists and its sha256 matches;
                  add --repair to drop bad entries so the next run re-pulls them
-      --pause    set the pause (same as creating OUT/PAUSE); the running pull holds
-                 between batches
-      --resume   clear the pause
+      --pause    hold the running pull between batches (same as creating OUT/PAUSE);
+                 remove the file, or just start the pull again, to continue
   * Pause and resume: Ctrl-C once finishes the batch in flight, writes it, and stops
     cleanly; re-running the same command resumes at the next batch (a second Ctrl-C
     stops at once; the interrupted batch is re-pulled on resume). To hold the pull
     without stopping it, create the file OUT/PAUSE from another terminal
     (`touch ~/penumbra-data/alpaca/PAUSE`); the script waits, checking every 10 s,
-    and continues when the file is removed. `--max-minutes N` stops cleanly after N
+    and continues when the file is removed. Starting the pull is always a resume: it
+    reads the manifest, skips what is done, and clears a leftover pause. `--max-minutes N` stops cleanly after N
     minutes, for running in time boxes.
   * Rate limit: the free data plan allows 200 requests per minute. The script
     paces itself at 3 per second and backs off on 429.
@@ -376,7 +376,7 @@ def status(out: Path, timeframe: str) -> None:
             mark = "" if len(by_month[ym]) >= per else "  (partial)"
             print(f"{ym:8s} {len(by_month[ym]):>4d}/{per:<5d} {rows:>14,}{mark}")
         print(f"{'total':8s} {len(entries):>10d} {total:>14,}")
-    log("pause is SET (remove with --resume)" if (out / "PAUSE").exists() else "not paused")
+    log("pause is SET (remove OUT/PAUSE, or start the pull, to continue)" if (out / "PAUSE").exists() else "not paused")
 
 
 def verify(out: Path, repair: bool) -> None:
@@ -448,6 +448,9 @@ def run(args: argparse.Namespace) -> None:
     manifest = out / "manifest.jsonl"
     entries = read_manifest(out)
     done = set(entries)
+    if (out / "PAUSE").exists():
+        (out / "PAUSE").unlink()
+        log("a pause was set from an earlier run; cleared, continuing")
     signal.signal(signal.SIGINT, _on_sigint)
     t0 = time.monotonic()
     rows_total = 0
@@ -526,8 +529,7 @@ def main() -> None:
     ap.add_argument("--status", action="store_true", help="print what is already pulled under --out, then exit")
     ap.add_argument("--verify", action="store_true", help="check every manifest file exists and matches its sha256, then exit")
     ap.add_argument("--repair", action="store_true", help="with --verify: drop bad manifest entries so they are re-pulled")
-    ap.add_argument("--pause", action="store_true", help="set the pause on the pull running against --out, then exit")
-    ap.add_argument("--resume", action="store_true", help="clear the pause, then exit")
+    ap.add_argument("--pause", action="store_true", help="hold the pull running against --out between batches, then exit")
     args = ap.parse_args()
     if args.env_file:
         load_env_file(Path(args.env_file).expanduser())
@@ -541,11 +543,7 @@ def main() -> None:
     if args.pause:
         out.mkdir(parents=True, exist_ok=True)
         (out / "PAUSE").touch()
-        log(f"pause set: the pull against {out} holds after its current batch; --resume clears it")
-        return
-    if args.resume:
-        (out / "PAUSE").unlink(missing_ok=True)
-        log("pause cleared")
+        log(f"pause set: the pull against {out} holds after its current batch; remove {out / 'PAUSE'} or start the pull again to continue")
         return
     if args.status:
         status(out, args.timeframe)
