@@ -32,9 +32,10 @@ What it does:
     OUT/universe/common_stock_list.csv and OUT/manifest.jsonl (one line per file:
     month, batch, symbols, rows, sha256). Re-running skips files that exist, so a
     stopped pull resumes where it left off.
-  * Start date: before pulling, the script asks Alpaca for the earliest daily SPY bar on
-    the IEX feed and starts there if that is later than --start, so no empty months are
-    requested. `--probe` prints that date and exits.
+  * Start date: before pulling, the script asks Alpaca for the earliest SPY bar of the
+    requested timeframe on the IEX feed and starts there if that is later than --start.
+    `--probe` prints the earliest date and first-month bar count per timeframe for SPY
+    and two common stocks, then exits; run it before a long pull.
   * Holdout: the end date is capped at 2023-12-31 (spec/03). --allow-holdout
     overrides it; do not use that for the screen.
   * Rate limit: the free data plan allows 200 requests per minute. The script
@@ -258,24 +259,46 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def earliest_available(c: Client, first_year: int = 2010, last_year: int = 2023) -> date | None:
-    """First date for which the IEX feed returns a daily SPY bar, probing one request per year."""
+def earliest_available(c: Client, timeframe: str, symbol: str = "SPY", first_year: int = 2010, last_year: int = 2023) -> date | None:
+    """First date for which the IEX feed returns a bar of this timeframe for the symbol, one request per year."""
     for year in range(first_year, last_year + 1):
-        js = c.get(DATA_URL, {"symbols": "SPY", "timeframe": "1Day", "start": f"{year}-01-01T00:00:00Z",
+        js = c.get(DATA_URL, {"symbols": symbol, "timeframe": timeframe, "start": f"{year}-01-01T00:00:00Z",
                               "end": f"{year}-12-31T23:59:59Z", "limit": 1, "feed": "iex", "sort": "asc"})
-        bars = (js.get("bars") or {}).get("SPY") or []
+        bars = (js.get("bars") or {}).get(symbol) or []
         if bars:
             return pd.to_datetime(bars[0]["t"]).date()
     return None
 
 
+def month_bar_count(c: Client, timeframe: str, symbol: str, first_day: date) -> int:
+    m_end = date(first_day.year + (first_day.month == 12), first_day.month % 12 + 1, 1) - timedelta(days=1)
+    n = 0
+    token = None
+    while True:
+        params = {"symbols": symbol, "timeframe": timeframe, "start": f"{first_day.isoformat()}T00:00:00Z",
+                  "end": f"{m_end.isoformat()}T23:59:59Z", "limit": PAGE_LIMIT, "feed": "iex", "sort": "asc"}
+        if token:
+            params["page_token"] = token
+        js = c.get(DATA_URL, params)
+        n += len((js.get("bars") or {}).get(symbol) or [])
+        token = js.get("next_page_token")
+        if not token:
+            return n
+
+
 def probe() -> None:
+    """Where the IEX history starts, per timeframe, for SPY and for two ordinary common stocks."""
     c = Client()
-    first = earliest_available(c)
-    if first is None:
-        log("the IEX feed returned no daily SPY bar for any year 2010 to 2023")
-    else:
-        log(f"earliest IEX daily bar for SPY: {first}; use --start {first.isoformat()} or later")
+    for symbol in ("SPY", "AAPL", "PLUG"):
+        for tf in ("1Day", "1Hour", "15Min", "5Min", "1Min"):
+            first = earliest_available(c, tf, symbol)
+            if first is None:
+                log(f"{symbol:5s} {tf:6s}: no bars in any year 2010 to 2023")
+                continue
+            probe_month = date(first.year, first.month, 1)
+            n = month_bar_count(c, tf, symbol, probe_month)
+            log(f"{symbol:5s} {tf:6s}: earliest {first}; {n} bars in {probe_month.strftime('%Y-%m')}")
+    log("choose --start from the row for the timeframe you will pull; a month with only a handful of bars is not usable history")
 
 
 def run(args: argparse.Namespace) -> None:
@@ -289,11 +312,11 @@ def run(args: argparse.Namespace) -> None:
     symbols = read_symbols(Path(args.symbols_file)) if args.symbols_file else build_universe(out)
     batches = [symbols[i : i + BATCH_SYMBOLS] for i in range(0, len(symbols), BATCH_SYMBOLS)]
     c = Client()
-    first = earliest_available(c)
+    first = earliest_available(c, args.timeframe)
     if first is None:
-        sys.exit("the IEX feed returned no daily SPY bar for any year 2010 to 2023; nothing to pull")
+        sys.exit(f"the IEX feed returned no {args.timeframe} SPY bar for any year 2010 to 2023; nothing to pull")
     if first > start:
-        log(f"start moved to {first}: the earliest IEX bar Alpaca returns for SPY (months before it would be empty)")
+        log(f"start moved to {first}: the earliest IEX {args.timeframe} bar Alpaca returns for SPY (months before it would be empty)")
         start = date(first.year, first.month, 1)
     if start > end:
         sys.exit(f"nothing to pull: data begins {first} and the end date is {end}")
