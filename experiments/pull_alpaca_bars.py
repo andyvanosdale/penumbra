@@ -32,6 +32,9 @@ What it does:
     OUT/universe/common_stock_list.csv and OUT/manifest.jsonl (one line per file:
     month, batch, symbols, rows, sha256). Re-running skips files that exist, so a
     stopped pull resumes where it left off.
+  * Start date: before pulling, the script asks Alpaca for the earliest daily SPY bar on
+    the IEX feed and starts there if that is later than --start, so no empty months are
+    requested. `--probe` prints that date and exits.
   * Holdout: the end date is capped at 2023-12-31 (spec/03). --allow-holdout
     overrides it; do not use that for the screen.
   * Rate limit: the free data plan allows 200 requests per minute. The script
@@ -62,7 +65,6 @@ DATA_URL = "https://data.alpaca.markets/v2/stocks/bars"
 NASDAQ_LISTED = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_LISTED = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 HOLDOUT_START = date(2024, 1, 1)
-IEX_HISTORY_START = date(2016, 1, 1)
 PAGE_LIMIT = 10_000
 BATCH_SYMBOLS = 50
 REQUESTS_PER_SECOND = 3.0
@@ -256,20 +258,45 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def earliest_available(c: Client, first_year: int = 2010, last_year: int = 2023) -> date | None:
+    """First date for which the IEX feed returns a daily SPY bar, probing one request per year."""
+    for year in range(first_year, last_year + 1):
+        js = c.get(DATA_URL, {"symbols": "SPY", "timeframe": "1Day", "start": f"{year}-01-01T00:00:00Z",
+                              "end": f"{year}-12-31T23:59:59Z", "limit": 1, "feed": "iex", "sort": "asc"})
+        bars = (js.get("bars") or {}).get("SPY") or []
+        if bars:
+            return pd.to_datetime(bars[0]["t"]).date()
+    return None
+
+
+def probe() -> None:
+    c = Client()
+    first = earliest_available(c)
+    if first is None:
+        log("the IEX feed returned no daily SPY bar for any year 2010 to 2023")
+    else:
+        log(f"earliest IEX daily bar for SPY: {first}; use --start {first.isoformat()} or later")
+
+
 def run(args: argparse.Namespace) -> None:
     out = Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
     start = date.fromisoformat(args.start)
     end = date.fromisoformat(args.end)
-    if start < IEX_HISTORY_START:
-        log(f"start moved to {IEX_HISTORY_START}: the IEX feed has no earlier history")
-        start = IEX_HISTORY_START
     if end >= HOLDOUT_START and not args.allow_holdout:
         log(f"end capped at {HOLDOUT_START - timedelta(days=1)}: the holdout era is never downloaded (spec/03)")
         end = HOLDOUT_START - timedelta(days=1)
     symbols = read_symbols(Path(args.symbols_file)) if args.symbols_file else build_universe(out)
     batches = [symbols[i : i + BATCH_SYMBOLS] for i in range(0, len(symbols), BATCH_SYMBOLS)]
     c = Client()
+    first = earliest_available(c)
+    if first is None:
+        sys.exit("the IEX feed returned no daily SPY bar for any year 2010 to 2023; nothing to pull")
+    if first > start:
+        log(f"start moved to {first}: the earliest IEX bar Alpaca returns for SPY (months before it would be empty)")
+        start = date(first.year, first.month, 1)
+    if start > end:
+        sys.exit(f"nothing to pull: data begins {first} and the end date is {end}")
     manifest = out / "manifest.jsonl"
     done = {json.loads(l)["file"] for l in manifest.read_text().splitlines()} if manifest.exists() else set()
     t0 = time.monotonic()
@@ -310,6 +337,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--env-file", help="file with APCA_API_KEY_ID=... and APCA_API_SECRET_KEY=... lines")
     ap.add_argument("--check", action="store_true", help="one request to confirm the key works, then exit")
+    ap.add_argument("--probe", action="store_true", help="find the earliest date the IEX feed has data for, then exit")
     ap.add_argument("--out", default=os.environ.get("PENUMBRA_ALPACA_OUT", "./alpaca_bars"), help="output folder")
     ap.add_argument("--timeframe", default="5Min", help="1Min, 5Min, 15Min, 30Min or 1Hour (default 5Min)")
     ap.add_argument("--start", default="2016-01-01")
@@ -321,6 +349,9 @@ def main() -> None:
         load_env_file(Path(args.env_file).expanduser())
     if args.check:
         check()
+        return
+    if args.probe:
+        probe()
         return
     run(args)
 
