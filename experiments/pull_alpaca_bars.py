@@ -90,8 +90,29 @@ EXCL_RE = re.compile(
 )
 
 
+LIVE = sys.stdout.isatty()
+_live_open = {"on": False}
+
+
 def log(msg: str) -> None:
+    if _live_open["on"]:
+        sys.stdout.write("\r\033[K")
+        _live_open["on"] = False
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def live(msg: str) -> None:
+    """Rewrite the current terminal line (progress inside a month); no-op when piped."""
+    if not LIVE:
+        return
+    sys.stdout.write("\r\033[K" + msg)
+    sys.stdout.flush()
+    _live_open["on"] = True
+
+
+def hms(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
 
 
 # ---------------------------------------------------------------- credentials
@@ -362,6 +383,8 @@ def run(args: argparse.Namespace) -> None:
     rows_total = 0
     plan = list(months(start, end))
     log(f"{args.timeframe} bars, {len(symbols)} symbols in {len(batches)} batches, {len(plan)} months, feed=iex -> {out}")
+    todo_total = sum(1 for ym, _, _ in plan for bi in range(len(batches)) if f"bars/{args.timeframe}/{ym}/batch_{bi:03d}.parquet" not in done)
+    done_this_run = 0
     for mi, (ym, m_start, m_end) in enumerate(plan, 1):
         folder = out / "bars" / args.timeframe / ym
         folder.mkdir(parents=True, exist_ok=True)
@@ -381,11 +404,17 @@ def run(args: argparse.Namespace) -> None:
             path = out / rel
             df.to_parquet(path, index=False)
             rows_total += len(df)
+            done_this_run += 1
+            elapsed = time.monotonic() - t0
+            eta = (todo_total - done_this_run) * elapsed / done_this_run if done_this_run else 0
+            live(f"{ym} ({mi}/{len(plan)}) batch {bi + 1}/{len(batches)} · {rows_total:,} rows · {c.requests} req · "
+                 f"{hms(elapsed)} elapsed · ETA {hms(eta)}")
             with manifest.open("a") as f:
                 f.write(json.dumps({"file": rel, "month": ym, "batch": bi, "symbols": [s for s in batch if s not in SKIPPED], "rows": len(df),
                                     "sha256": sha256(path), "pulled_at": datetime.now(timezone.utc).isoformat()}) + "\n")
         elapsed = time.monotonic() - t0
-        log(f"{ym} done ({mi}/{len(plan)}): {rows_total:,} rows so far, {c.requests} requests, {elapsed/60:.1f} min elapsed")
+        eta = (todo_total - done_this_run) * elapsed / done_this_run if done_this_run else 0
+        log(f"{ym} done ({mi}/{len(plan)}): {rows_total:,} rows so far, {c.requests} requests, {hms(elapsed)} elapsed, ETA {hms(eta)}")
     if SKIPPED:
         (out / "universe" / "skipped_symbols.json").write_text(json.dumps(sorted(SKIPPED), indent=2))
         log(f"{len(SKIPPED)} symbols unknown to Alpaca were skipped; list in universe/skipped_symbols.json")
