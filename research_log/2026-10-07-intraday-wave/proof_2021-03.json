@@ -1,0 +1,50 @@
+{
+  "month": "2021-03",
+  "sessions": 23,
+  "names_with_bars": 3398,
+  "name_sessions": 74308,
+  "early_close_sessions": [],
+  "bars_per_name_session": {
+    "p10": 5.0,
+    "median": 46.0,
+    "p90": 78.0,
+    "share_ge_60": 0.3745626312106368,
+    "share_full_78": 0.1022366367012973
+  },
+  "names_with_ge_60_bars_every_session": 596,
+  "fill_at_entry_times": {
+    "09:35": {
+      "filled_share": 0.7718818969693707,
+      "mean_late_min": 2.4469550360025805,
+      "late_share": 0.28960719702913335
+    },
+    "10:00": {
+      "filled_share": 0.7812483178123486,
+      "mean_late_min": 2.1661240590494892,
+      "late_share": 0.2686682858766989
+    },
+    "10:30": {
+      "filled_share": 0.7806561877590569,
+      "mean_late_min": 2.1438052715957867,
+      "late_share": 0.26497612439449053
+    },
+    "12:00": {
+      "filled_share": 0.7416294342466491,
+      "mean_late_min": 2.4907002485982326,
+      "late_share": 0.3009127365766027
+    },
+    "15:30": {
+      "filled_share": 0.8488722613985036,
+      "mean_late_min": 1.81568851263515,
+      "late_share": 0.2242778781825676
+    },
+    "15:55": {
+      "filled_share": 0.8214324164289175,
+      "mean_late_min": 0.0,
+      "late_share": 0.0
+    }
+  },
+  "c1555_present_share": 0.8214324164289175,
+  "c_close_present_share": 0.8984227808580503,
+  "o0930_present_share": 0.5981993863379448
+}

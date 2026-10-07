@@ -10,6 +10,8 @@ signal is one file:
     signals/       one module per signal: as-of arrays in, candidate or score matrix out
     movers.py      the extreme-movers counts and lift study
     ledger.py      research_log/ledger.md rows
+    intraday_*.py  the intraday wave (2026-10-07): 5-minute IEX session tables, the clock-time
+                   fill engine, the i8 autopsy; signals/intraday.py; CLI intraday_cli.py
     __main__.py    python -m experiments.screen {pull,run,regress,movers,tables}
 
 Standalone: pandas, numpy, yfinance, requests. Nothing here imports harness/ or legacy/.
