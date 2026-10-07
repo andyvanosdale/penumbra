@@ -1,0 +1,13 @@
+universe,group,year,names,names_eligible
+smallcap,up2x1,2020,11,1132
+smallcap,up2x1,2021,31,1488
+smallcap,up2x1,2022,8,1366
+smallcap,down50_1,2020,11,1132
+smallcap,down50_1,2021,15,1488
+smallcap,down50_1,2022,15,1366
+uncapped,up2x1,2020,14,2298
+uncapped,up2x1,2021,36,2598
+uncapped,up2x1,2022,8,2650
+uncapped,down50_1,2020,12,2298
+uncapped,down50_1,2021,18,2598
+uncapped,down50_1,2022,19,2650

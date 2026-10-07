@@ -47,16 +47,17 @@ class IntradaySignal:
 
 
 # ---------------------------------------------------------------- shared features (row F, knowable before the entry)
-def gap_sigma(A: dict, I: dict) -> np.ndarray:
-    """ln(o(09:30) x f_F / a_close_{F-1}) / (rvol_20_{F-1} / sqrt(252))."""
-    with np.errstate(all="ignore"):
-        g = np.log(I["o0930"] * I["f"] / shift_rows(A["a_close"], -1))
-        return g / (shift_rows(A["rvol_20"], -1) / math.sqrt(ANN))
-
-
 def overnight_return(A: dict, I: dict) -> np.ndarray:
+    """ln(a_open_F / a_close_{F-1}) on the adjusted daily series: the official opening print against the prior
+    close, known at 09:30 (amendment 2026-10-07: the IEX 09:30 open against a yfinance close is not split-safe)."""
     with np.errstate(all="ignore"):
-        return np.log(I["o0930"] * I["f"] / shift_rows(A["a_close"], -1))
+        return np.log(A["a_open"] / shift_rows(A["a_close"], -1))
+
+
+def gap_sigma(A: dict, I: dict) -> np.ndarray:
+    """The overnight return in trailing daily vols: / (rvol_20_{F-1} / sqrt(252))."""
+    with np.errstate(all="ignore"):
+        return overnight_return(A, I) / (shift_rows(A["rvol_20"], -1) / math.sqrt(ANN))
 
 
 def r_fhh(I: dict) -> np.ndarray:

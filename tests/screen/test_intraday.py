@@ -193,9 +193,15 @@ def test_trades_returns_comparator_and_costs(world):
         assert r["entry"] == e
         assert np.isclose(r["fwd_close"], I["c_close"][row, j] / e - 1)
         assert np.isclose(r["fwd_1030"], I["px_1030"][row, j] / e - 1)
-        # next open and 1 / 5 / 21 sessions on the adjusted basis
-        assert np.isclose(r["fwd_nopen"], A["a_open"][row + 1, j] / (e * I["f"][row, j]) - 1)
-        assert np.isclose(r["fwd_5"], A["a_close"][row + 5, j] / (e * I["f"][row, j]) - 1)
+        # next open and 1 / 5 / 21 sessions: the intraday leg to the session close chained to the daily adjusted leg
+        c = I["c_close"][row, j]
+        assert np.isclose(r["fwd_nopen"], (c / e) * (A["a_open"][row + 1, j] / A["a_close"][row, j]) - 1)
+        assert np.isclose(r["fwd_5"], (c / e) * (A["a_close"][row + 5, j] / A["a_close"][row, j]) - 1)
+    # a daily series on another price level (a later split, a different adjustment) leaves every return unchanged
+    A10 = dict(A); A10["a_open"] = A["a_open"] * 10; A10["a_close"] = A["a_close"] * 10; A10["close"] = A["close"] * 10
+    tr10 = ieng.intraday_trades(A10, I, raw, spec, elig, ("2019-01-01", "2021-12-31"))
+    for ex in ieng.EXITS:
+        assert np.allclose(tr10[f"fwd_{ex}"], tr[f"fwd_{ex}"], equal_nan=True), ex
     # the comparator is the mean over every eligible name filled at 10:00
     e_all = I["px_1000"][row]
     uni = np.nanmean(I["c_close"][row] / e_all - 1)

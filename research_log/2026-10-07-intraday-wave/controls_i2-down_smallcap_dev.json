@@ -1,0 +1,18 @@
+{
+  "placebo_z_0": 0.4758959072744238,
+  "placebo_mean_net_0": -0.00017553409708081228,
+  "placebo_z_base": -1.753978840705868,
+  "placebo_mean_net_base": -0.0034622928298184245,
+  "placebo_trades": 1231,
+  "placebo_days": 371,
+  "planted_z_0": 2.4021699166428707,
+  "actual_z_0": 1.2670275112278677,
+  "planted_shift": 1.135142405415003,
+  "power_days": 368,
+  "power_se_bps": 44.07456770443977,
+  "power_required_net_bps_for_z3": 132.22370311331932,
+  "fill_candidates": 1195,
+  "fill_unfilled_share": 0.08619246861924686,
+  "fill_mean_late_min": 0.8974358974358975,
+  "fill_late_share": 0.10531135531135531
+}

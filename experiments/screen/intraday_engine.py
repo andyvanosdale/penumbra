@@ -36,12 +36,16 @@ def exits_for(entry: str) -> list[str]:
 
 
 def exit_arrays(A: dict, I: dict) -> dict[str, np.ndarray]:
-    """Exit prices in the raw-on-F basis (daily prices divided by the session factor f_F)."""
-    f = I["f"]
+    """Exit prices in the raw-on-F basis. The cross-session exits chain two legs at the session close:
+    the intraday leg on the IEX prices (entry to the same-session close) and the daily leg on the adjusted
+    daily series (close of F to the exit), so exit = c_close_F x daily_exit / a_close_F. yfinance's "raw"
+    close is already split-adjusted, so a ratio of an IEX price to a daily price is not a return across a
+    split; the chain never takes one (amendment 2026-10-07)."""
+    C = I["c_close"]
     with np.errstate(all="ignore"):
-        return {"1030": I["px_1030"], "1200": I["px_1200"], "close": I["c_close"],
-                "nopen": shift_rows(A["a_open"], 1) / f, "1": shift_rows(A["a_close"], 1) / f,
-                "5": shift_rows(A["a_close"], 5) / f, "21": shift_rows(A["a_close"], 21) / f}
+        chain = lambda X, off: C * shift_rows(X, off) / A["a_close"]  # noqa: E731
+        return {"1030": I["px_1030"], "1200": I["px_1200"], "close": C,
+                "nopen": chain(A["a_open"], 1), "1": chain(A["a_close"], 1), "5": chain(A["a_close"], 5), "21": chain(A["a_close"], 21)}
 
 
 def period_slices(dates: pd.Series, era_name: str) -> list[tuple[str, np.ndarray]]:

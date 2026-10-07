@@ -234,8 +234,6 @@ def intraday_arrays(A: dict, panel: pd.DataFrame) -> dict:
     # eligibility at F-1 (data through the previous session's close)
     I["elig_daily"] = shift_rows(A["in_universe"].astype(float), -1) == 1.0
     I["elig_floor"] = I["elig_daily"] & I["floor_ok"]
-    with np.errstate(all="ignore"):
-        I["f"] = A["a_close"] / A["close"]                      # raw -> adjusted basis, per session
     return I
 
 

@@ -1,0 +1,25 @@
+baseline,universe,cost,trades,days,mean_net_bps,z
+"wave-1 1a next-open, 1 session (open F to open F+1)",smallcap,0,10700,478,8.207085327800712,3.2016711296946085
+"wave-1 1a next-open, 1 session (open F to open F+1)",smallcap,base,10700,478,-32.40226046659182,-0.8091139577301607
+"wave-1 1b-5d next-open, 1 session (open F to open F+1)",smallcap,0,6296,478,-26.41372157238503,-2.2353129319458187
+"wave-1 1b-5d next-open, 1 session (open F to open F+1)",smallcap,base,6296,478,-71.14370886590473,-4.602019873422603
+"i2-up candidates, daily open fill, open to close",smallcap,0 / base,2922,477,+39 / +3,+1.80 / -0.64
+"i2-up candidates, daily open fill, open to next open",smallcap,0 / base,2917,476,+29 / -7,+0.86 / -1.42
+"i2-down candidates, daily open fill, open to close",smallcap,0 / base,52932,479,+20 / -17,+4.61 / -4.02
+"i2-down candidates, daily open fill, open to next open",smallcap,0 / base,52841,478,+19 / -18,+3.78 / -3.00
+"i6-1a candidates (shock <= -2 on F-1), daily open fill, open to close",smallcap,0 / base,11221,478,+8 / -32,+2.97 / -1.51
+"i6-1a candidates (shock <= -2 on F-1), daily open fill, open to next open",smallcap,0 / base,11198,477,+8 / -32,+3.08 / -0.84
+"i6-1b candidates (1b on F-1), daily open fill, open to close",smallcap,0 / base,6666,477,-42 / -86,-2.63 / -5.47
+"i6-1b candidates (1b on F-1), daily open fill, open to next open",smallcap,0 / base,6664,476,-36 / -80,-2.49 / -4.84
+"wave-1 1a next-open, 1 session (open F to open F+1)",uncapped,0,18370,480,9.500234339195599,3.3197700880409142
+"wave-1 1a next-open, 1 session (open F to open F+1)",uncapped,base,18370,480,-24.46057132220887,-0.7220835760453651
+"wave-1 1b-5d next-open, 1 session (open F to open F+1)",uncapped,0,9735,478,-21.372856964182823,-2.2988970913127793
+"wave-1 1b-5d next-open, 1 session (open F to open F+1)",uncapped,base,9735,478,-59.7827182892984,-4.880651401183854
+"i2-up candidates, daily open fill, open to close",uncapped,0 / base,14634,479,+18 / -7,+2.59 / -2.08
+"i2-up candidates, daily open fill, open to next open",uncapped,0 / base,14597,478,+19 / -5,+2.17 / -1.53
+"i2-down candidates, daily open fill, open to close",uncapped,0 / base,56032,479,+24 / -13,+4.73 / -2.55
+"i2-down candidates, daily open fill, open to next open",uncapped,0 / base,55933,478,+20 / -17,+3.55 / -2.31
+"i6-1a candidates (shock <= -2 on F-1), daily open fill, open to close",uncapped,0 / base,19256,479,+10 / -24,+2.97 / -1.64
+"i6-1a candidates (shock <= -2 on F-1), daily open fill, open to next open",uncapped,0 / base,19223,478,+10 / -24,+3.42 / -0.57
+"i6-1b candidates (1b on F-1), daily open fill, open to close",uncapped,0 / base,10234,477,-34 / -72,-2.58 / -5.45
+"i6-1b candidates (1b on F-1), daily open fill, open to next open",uncapped,0 / base,10229,476,-26 / -64,-2.39 / -4.92
