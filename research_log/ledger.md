@@ -50,3 +50,43 @@ z bar to 3.5 and is flagged here.
 | 2026-10-01 | a2r | down-vol_pctl_250 | crypto | af23489 + cbc3c67 (A2) | event short | 63s | -0.47 | -42 bps | 1102 / 722 | — | — | null | 2026-10-01-wave-1-screen.md |
 | 2026-10-01 | a2r | down-rvol_20 | crypto | af23489 + cbc3c67 (A2) | event short | 63s | -0.49 | +82 bps | 1149 / 821 | — | — | null | 2026-10-01-wave-1-screen.md |
 | 2026-10-01 | a2r | down-ret_60 | crypto | af23489 + cbc3c67 (A2) | event short | 63s | +0.54 | +322 bps | 929 / 677 | — | — | null | 2026-10-01-wave-1-screen.md |
+| 2026-10-07 | i1 | — | smallcap | d979e2a | intraday long 10:00 | close | -0.41 | +0 bps | 251 / 156 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i1 | — | uncapped | d979e2a | intraday long 10:00 | close | -0.37 | +1 bps | 1367 / 339 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i2 | up | smallcap | d979e2a | intraday long 09:35 | close | -2.14 | -94 bps | 1677 / 426 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i2 | up | uncapped | d979e2a | intraday long 09:35 | close | -2.30 | -54 bps | 2646 / 456 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i2 | down | smallcap | d979e2a | intraday short 09:35 | close | +0.39 | -3 bps | 1060 / 368 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i2 | down | uncapped | d979e2a | intraday short 09:35 | close | +1.38 | +1 bps | 1699 / 414 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i3 | top | smallcap | d979e2a | intraday long 10:00 | close | -2.40 | -23 bps | 1492 / 464 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i3 | top | uncapped | d979e2a | intraday long 10:00 | close | -2.03 | -10 bps | 7089 / 464 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i3 | bottom | smallcap | d979e2a | intraday short 10:00 | close | -0.88 | -8 bps | 1493 / 464 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i3 | bottom | uncapped | d979e2a | intraday short 10:00 | close | -2.38 | -9 bps | 7094 / 464 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i4 | — | smallcap | d979e2a | intraday long 15:30 | close | -6.42 | -19 bps | 1481 / 464 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i4 | — | uncapped | d979e2a | intraday long 15:30 | close | -12.59 | -19 bps | 7041 / 464 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i5 | all | smallcap | d979e2a | intraday long 15:55 | nopen | -4.77 | -23 bps | 284996 / 478 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i5 | all | uncapped | d979e2a | intraday long 15:55 | nopen | -3.95 | -18 bps | 512725 / 478 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i5 | q5 | smallcap | d979e2a | intraday long 15:55 | nopen | -13.30 | -29 bps | 57218 / 478 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i5 | q5 | uncapped | d979e2a | intraday long 15:55 | nopen | -13.63 | -26 bps | 102729 / 478 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i5 | q1 | smallcap | d979e2a | intraday long 15:55 | nopen | -21.40 | -44 bps | 56767 / 478 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i5 | q1 | uncapped | d979e2a | intraday long 15:55 | nopen | -19.44 | -36 bps | 102247 / 478 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1a | 0935 | smallcap | d979e2a | intraday short 09:35 | close | -1.75 | -33 bps | 8490 / 471 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1a | 0935 | uncapped | d979e2a | intraday short 09:35 | close | -1.87 | -27 bps | 15794 / 476 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1a | 1030 | smallcap | d979e2a | intraday short 10:30 | close | -2.19 | -28 bps | 8518 / 470 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1a | 1030 | uncapped | d979e2a | intraday short 10:30 | close | -2.99 | -23 bps | 15889 / 477 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1b | 0935 | smallcap | d979e2a | intraday long 09:35 | close | -3.81 | -69 bps | 5592 / 474 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1b | 0935 | uncapped | d979e2a | intraday long 09:35 | close | -3.25 | -54 bps | 8962 / 475 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1b | 1030 | smallcap | d979e2a | intraday long 10:30 | close | -2.20 | -40 bps | 5359 / 471 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i6-1b | 1030 | uncapped | d979e2a | intraday long 10:30 | close | -2.20 | -38 bps | 8717 / 475 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i7 | — | smallcap | d979e2a | intraday short 12:00 | close | -0.75 | -4 bps | 282 / 180 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i7 | — | uncapped | d979e2a | intraday short 12:00 | close | -0.46 | -20 bps | 957 / 292 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | up-fhh_vol_share | smallcap | d979e2a | intraday long 09:35 | close | -12.29 | -37 bps | 30543 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | up-fhh_ret | smallcap | d979e2a | intraday long 09:35 | close | -6.66 | -30 bps | 19983 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | up-late_vol_share | smallcap | d979e2a | intraday long 09:35 | close | -13.75 | -39 bps | 39349 / 476 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | up-fhh_vol_share | uncapped | d979e2a | intraday long 09:35 | close | -15.75 | -32 bps | 62346 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | up-fhh_ret | uncapped | d979e2a | intraday long 09:35 | close | -7.93 | -29 bps | 48298 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | up-late_vol_share | uncapped | d979e2a | intraday long 09:35 | close | -15.16 | -33 bps | 79249 / 476 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | down-close_loc | smallcap | d979e2a | intraday short 09:35 | close | -15.72 | -38 bps | 42666 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | down-fhh_ret | smallcap | d979e2a | intraday short 09:35 | close | -6.30 | -30 bps | 19983 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | down-late_vol_share | smallcap | d979e2a | intraday short 09:35 | close | -13.14 | -39 bps | 39349 / 476 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | down-close_loc | uncapped | d979e2a | intraday short 09:35 | close | -16.32 | -33 bps | 82877 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | down-fhh_ret | uncapped | d979e2a | intraday short 09:35 | close | -6.06 | -22 bps | 48298 / 479 | — | — | null | 2026-10-07-intraday-wave.md |
+| 2026-10-07 | i8 | down-late_vol_share | uncapped | d979e2a | intraday short 09:35 | close | -13.65 | -31 bps | 79249 / 476 | — | — | null | 2026-10-07-intraday-wave.md |

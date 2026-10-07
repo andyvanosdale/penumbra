@@ -903,3 +903,363 @@ Per period (decision exit, base cost):
 | half2 | 502 | 144 | -33 | -1.07 |
 
 Controls: placebo (lag 20) z @0 +0.70, @base -1.36 on 1259 trades; planted +50 bps z +3.71 vs actual +0.73 (shift +2.97). Power: 292 days, day-mean SE 17 bps, z = 3 needs 50 bps net per trade. Fills: mean lateness 0.0 min, 0.6% of fills late, 0.0% unfilled.
+
+**i8-down-close_loc / smallcap / dev — short, entry 09:35, decision exit `close`**
+
+i8 rule on `close_loc` (bottom quintile, selection lift 1.73): match rate 19.3% per day; 15 of 42666 trades made the original one-session move (0.04%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 68440 | 33.6% | 0 | 42666 | 479 | -1 | -20 | -38 | -76 | -inf | 0.465 | -39 | +2 | -15.72 | 8.3% | -15.81 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 35147 | -2 | -1.33 | -37 | -20.96 |
+| 1200 | 32679 | -3 | -1.69 | -37 | -16.59 |
+| close * | 42666 | -1 | -0.49 | -38 | -15.72 |
+| nopen | 42563 | -5 | -1.74 | -42 | -14.23 |
+| 1 | 42563 | -3 | -0.79 | -41 | -10.47 |
+| 5 | 42088 | -16 | -2.37 | -53 | -7.63 |
+| 21 | 40196 | -44 | -2.29 | -81 | -4.79 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 7326 | 104 | -33 | -5.08 |
+| 2021 | 22394 | 251 | -44 | -13.62 |
+| 2022 | 12946 | 124 | -32 | -7.54 |
+| half1 | 20470 | 238 | -37 | -9.67 |
+| half2 | 22196 | 241 | -39 | -12.96 |
+
+Controls: placebo (lag 20) z @0 -0.45, @base -13.75 on 33773 trades; planted +50 bps z +19.80 vs actual -0.49 (shift +20.29). Power: 479 days, day-mean SE 2 bps, z = 3 needs 7 bps net per trade. Fills: mean lateness 3.5 min, 41.0% of fills late, 33.6% unfilled.
+
+**i8-down-close_loc / uncapped / dev — short, entry 09:35, decision exit `close`**
+
+i8 rule on `close_loc` (bottom quintile, selection lift 1.73): match rate 19.4% per day; 18 of 82877 trades made the original one-session move (0.02%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 115533 | 25.5% | 0 | 82877 | 479 | -1 | -17 | -33 | -64 | -inf | 0.464 | -34 | +2 | -16.32 | 8.8% | -16.33 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 72812 | -1 | -1.33 | -31 | -20.92 |
+| 1200 | 69339 | -1 | -1.36 | -30 | -17.32 |
+| close * | 82877 | -1 | -0.89 | -33 | -16.32 |
+| nopen | 82628 | -4 | -1.71 | -35 | -14.45 |
+| 1 | 82628 | -3 | -0.92 | -35 | -10.79 |
+| 5 | 81525 | -8 | -1.67 | -39 | -7.01 |
+| 21 | 77332 | -33 | -1.97 | -65 | -4.42 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 16695 | 104 | -27 | -6.16 |
+| 2021 | 38886 | 251 | -38 | -13.77 |
+| 2022 | 27296 | 124 | -28 | -7.07 |
+| half1 | 39730 | 238 | -31 | -10.54 |
+| half2 | 43147 | 241 | -34 | -12.57 |
+
+Controls: placebo (lag 20) z @0 -1.49, @base -14.82 on 60405 trades; planted +50 bps z +23.33 vs actual -0.89 (shift +24.22). Power: 479 days, day-mean SE 2 bps, z = 3 needs 6 bps net per trade. Fills: mean lateness 2.8 min, 33.5% of fills late, 25.5% unfilled.
+
+**i8-down-fhh_ret / smallcap / dev — short, entry 09:35, decision exit `close`**
+
+i8 rule on `fhh_ret` (bottom quintile, selection lift 1.59): match rate 6.1% per day; 4 of 19983 trades made the original one-session move (0.02%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 21731 | 6.9% | 0 | 19983 | 479 | +0 | -15 | -30 | -60 | -596 | 0.493 | -29 | +5 | -6.30 | 11.1% | -5.81 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 18908 | -1 | -0.30 | -31 | -9.55 |
+| 1200 | 18105 | -3 | -0.74 | -32 | -8.01 |
+| close * | 19983 | +0 | +0.17 | -30 | -6.30 |
+| nopen | 19934 | +2 | +0.50 | -28 | -4.63 |
+| 1 | 19934 | +1 | +0.33 | -29 | -3.69 |
+| 5 | 19708 | -7 | -0.09 | -37 | -2.32 |
+| 21 | 18879 | +12 | +0.24 | -18 | -0.78 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 3431 | 104 | -19 | -1.09 |
+| 2021 | 10794 | 251 | -33 | -5.93 |
+| 2022 | 5758 | 124 | -30 | -3.13 |
+| half1 | 10235 | 238 | -24 | -2.95 |
+| half2 | 9748 | 241 | -36 | -6.24 |
+
+Controls: placebo (lag 20) z @0 -0.09, @base -6.57 on 16642 trades; planted +50 bps z +10.97 vs actual +0.17 (shift +10.80). Power: 479 days, day-mean SE 5 bps, z = 3 needs 14 bps net per trade. Fills: mean lateness 1.8 min, 23.0% of fills late, 6.9% unfilled.
+
+**i8-down-fhh_ret / uncapped / dev — short, entry 09:35, decision exit `close`**
+
+i8 rule on `fhh_ret` (bottom quintile, selection lift 1.59): match rate 8.4% per day; 7 of 48298 trades made the original one-session move (0.01%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 51011 | 4.7% | 0 | 48298 | 479 | +4 | -9 | -22 | -48 | -500 | 0.491 | -23 | +4 | -6.06 | 11.4% | -6.12 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 46668 | +1 | -0.10 | -24 | -9.86 |
+| 1200 | 45437 | +1 | -0.01 | -25 | -7.98 |
+| close * | 48298 | +4 | +0.92 | -22 | -6.06 |
+| nopen | 48145 | +2 | +0.63 | -24 | -5.05 |
+| 1 | 48145 | -3 | -0.03 | -29 | -4.41 |
+| 5 | 47468 | -20 | -0.84 | -46 | -3.42 |
+| 21 | 45004 | -35 | -1.58 | -60 | -2.74 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 9964 | 104 | -16 | -1.75 |
+| 2021 | 22436 | 251 | -26 | -5.77 |
+| 2022 | 15898 | 124 | -20 | -2.31 |
+| half1 | 23877 | 238 | -20 | -3.50 |
+| half2 | 24421 | 241 | -25 | -5.01 |
+
+Controls: placebo (lag 20) z @0 -0.71, @base -7.48 on 37522 trades; planted +50 bps z +14.40 vs actual +0.92 (shift +13.48). Power: 479 days, day-mean SE 4 bps, z = 3 needs 11 bps net per trade. Fills: mean lateness 1.3 min, 17.4% of fills late, 4.7% unfilled.
+
+**i8-down-late_vol_share / smallcap / dev — short, entry 09:35, decision exit `close`**
+
+i8 rule on `late_vol_share` (bottom quintile, selection lift 1.53): match rate 19.3% per day; 10 of 39349 trades made the original one-session move (0.03%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 68432 | 36.8% | 0 | 39349 | 476 | -0 | -20 | -39 | -79 | -615 | 0.479 | -39 | +3 | -13.14 | 9.3% | -13.15 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 31733 | +2 | +1.20 | -34 | -15.70 |
+| 1200 | 29164 | -2 | -0.02 | -38 | -11.90 |
+| close * | 39349 | -0 | +0.32 | -39 | -13.14 |
+| nopen | 39252 | -4 | -0.81 | -44 | -11.47 |
+| 1 | 39252 | +1 | +0.43 | -38 | -7.33 |
+| 5 | 38797 | -5 | -0.01 | -44 | -4.02 |
+| 21 | 36973 | +21 | +0.80 | -18 | -0.97 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 6341 | 102 | -44 | -5.08 |
+| 2021 | 20476 | 250 | -38 | -9.26 |
+| 2022 | 12532 | 124 | -39 | -9.39 |
+| half1 | 18332 | 236 | -43 | -8.29 |
+| half2 | 21017 | 240 | -36 | -11.51 |
+
+Controls: placebo (lag 20) z @0 +0.11, @base -11.62 on 32156 trades; planted +50 bps z +17.35 vs actual +0.32 (shift +17.03). Power: 476 days, day-mean SE 3 bps, z = 3 needs 9 bps net per trade. Fills: mean lateness 3.5 min, 40.3% of fills late, 36.8% unfilled.
+
+**i8-down-late_vol_share / uncapped / dev — short, entry 09:35, decision exit `close`**
+
+i8 rule on `late_vol_share` (bottom quintile, selection lift 1.53): match rate 19.5% per day; 16 of 79249 trades made the original one-session move (0.02%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 115432 | 27.4% | 0 | 79249 | 476 | +1 | -15 | -31 | -64 | -527 | 0.479 | -31 | +2 | -13.65 | 9.2% | -13.77 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 69240 | +2 | +1.55 | -28 | -17.08 |
+| 1200 | 65516 | -1 | +0.52 | -30 | -13.54 |
+| close * | 79249 | +1 | +0.77 | -31 | -13.65 |
+| nopen | 79001 | -3 | -0.60 | -35 | -11.52 |
+| 1 | 79001 | -0 | +0.18 | -33 | -8.29 |
+| 5 | 77910 | -1 | +0.32 | -33 | -3.81 |
+| 21 | 73715 | +17 | +0.64 | -16 | -1.09 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 15235 | 102 | -35 | -7.47 |
+| 2021 | 36450 | 250 | -29 | -8.21 |
+| 2022 | 27564 | 124 | -32 | -10.64 |
+| half1 | 36634 | 236 | -33 | -8.67 |
+| half2 | 42615 | 240 | -30 | -11.73 |
+
+Controls: placebo (lag 20) z @0 -0.21, @base -11.30 on 60958 trades; planted +50 bps z +22.64 vs actual +0.77 (shift +21.86). Power: 476 days, day-mean SE 2 bps, z = 3 needs 7 bps net per trade. Fills: mean lateness 2.7 min, 31.1% of fills late, 27.4% unfilled.
+
+**i8-up-fhh_ret / smallcap / dev — long, entry 09:35, decision exit `close`**
+
+i8 rule on `fhh_ret` (bottom quintile, selection lift 2.11): match rate 6.1% per day; 5 of 19983 trades made the original one-session move (0.03%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 21731 | 6.9% | 0 | 19983 | 479 | -0 | -15 | -30 | -60 | -597 | 0.434 | -31 | +5 | -6.66 | 9.7% | -7.37 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 18908 | +1 | +0.30 | -28 | -8.97 |
+| 1200 | 18105 | +3 | +0.74 | -26 | -6.54 |
+| close * | 19983 | -0 | -0.17 | -30 | -6.66 |
+| nopen | 19934 | -2 | -0.50 | -32 | -5.65 |
+| 1 | 19934 | -1 | -0.33 | -31 | -4.36 |
+| 5 | 19708 | +7 | +0.09 | -23 | -2.14 |
+| 21 | 18879 | -12 | -0.24 | -42 | -1.26 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 3431 | 104 | -41 | -4.54 |
+| 2021 | 10794 | 251 | -26 | -3.61 |
+| 2022 | 5758 | 124 | -32 | -3.73 |
+| half1 | 10235 | 238 | -35 | -5.41 |
+| half2 | 9748 | 241 | -26 | -3.95 |
+
+Controls: placebo (lag 20) z @0 +0.09, @base -6.40 on 16642 trades; planted +50 bps z +10.63 vs actual -0.17 (shift +10.80). Power: 479 days, day-mean SE 5 bps, z = 3 needs 14 bps net per trade. Fills: mean lateness 1.8 min, 23.0% of fills late, 6.9% unfilled.
+
+**i8-up-fhh_ret / uncapped / dev — long, entry 09:35, decision exit `close`**
+
+i8 rule on `fhh_ret` (bottom quintile, selection lift 2.11): match rate 8.4% per day; 8 of 48298 trades made the original one-session move (0.02%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 51011 | 4.7% | 0 | 48298 | 479 | -4 | -16 | -29 | -55 | -507 | 0.435 | -29 | +4 | -7.93 | 10.5% | -8.31 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 46668 | -1 | +0.10 | -26 | -9.70 |
+| 1200 | 45437 | -1 | +0.01 | -26 | -7.98 |
+| close * | 48298 | -4 | -0.92 | -29 | -7.93 |
+| nopen | 48145 | -2 | -0.63 | -28 | -6.31 |
+| 1 | 48145 | +3 | +0.03 | -23 | -4.36 |
+| 5 | 47468 | +20 | +0.84 | -6 | -1.74 |
+| 21 | 45004 | +35 | +1.58 | +9 | +0.42 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 9964 | 104 | -35 | -6.36 |
+| 2021 | 22436 | 251 | -26 | -4.97 |
+| 2022 | 15898 | 124 | -31 | -3.45 |
+| half1 | 23877 | 238 | -32 | -6.96 |
+| half2 | 24421 | 241 | -27 | -4.42 |
+
+Controls: placebo (lag 20) z @0 +0.71, @base -6.04 on 37522 trades; planted +50 bps z +12.55 vs actual -0.92 (shift +13.48). Power: 479 days, day-mean SE 4 bps, z = 3 needs 11 bps net per trade. Fills: mean lateness 1.3 min, 17.4% of fills late, 4.7% unfilled.
+
+**i8-up-fhh_vol_share / smallcap / dev — long, entry 09:35, decision exit `close`**
+
+i8 rule on `fhh_vol_share` (bottom quintile, selection lift 2.27): match rate 20.9% per day; 11 of 30543 trades made the original one-session move (0.04%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 73553 | 53.2% | 0 | 30543 | 479 | +8 | -14 | -37 | -83 | -498 | 0.424 | -36 | +3 | -12.29 | 8.8% | -12.33 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 20963 | +4 | +2.03 | -39 | -17.33 |
+| 1200 | 18956 | +5 | +2.19 | -37 | -11.17 |
+| close * | 30543 | +8 | +3.49 | -37 | -12.29 |
+| nopen | 30467 | +8 | +2.56 | -38 | -10.70 |
+| 1 | 30467 | +3 | +0.89 | -43 | -9.63 |
+| 5 | 30133 | +11 | +1.27 | -35 | -4.42 |
+| 21 | 28762 | +52 | +2.52 | +6 | -0.07 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 5438 | 104 | -38 | -5.97 |
+| 2021 | 15559 | 251 | -38 | -8.63 |
+| 2022 | 9546 | 124 | -36 | -6.44 |
+| half1 | 14603 | 238 | -39 | -8.12 |
+| half2 | 15940 | 241 | -35 | -9.51 |
+
+Controls: placebo (lag 20) z @0 +2.58, @base -11.97 on 24705 trades; planted +50 bps z +20.64 vs actual +3.49 (shift +17.14). Power: 479 days, day-mean SE 3 bps, z = 3 needs 9 bps net per trade. Fills: mean lateness 5.1 min, 55.6% of fills late, 53.2% unfilled.
+
+**i8-up-fhh_vol_share / uncapped / dev — long, entry 09:35, decision exit `close`**
+
+i8 rule on `fhh_vol_share` (bottom quintile, selection lift 2.27): match rate 19.8% per day; 20 of 62346 trades made the original one-session move (0.03%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 117111 | 43.0% | 0 | 62346 | 479 | +6 | -13 | -32 | -70 | -450 | 0.429 | -32 | +2 | -15.75 | 8.7% | -15.20 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 48911 | +2 | +1.61 | -34 | -22.11 |
+| 1200 | 45579 | +5 | +2.44 | -30 | -15.31 |
+| close * | 62346 | +6 | +3.23 | -32 | -15.75 |
+| nopen | 62146 | +6 | +2.37 | -32 | -13.78 |
+| 1 | 62146 | +3 | +1.03 | -35 | -11.54 |
+| 5 | 61246 | +1 | +0.20 | -37 | -6.96 |
+| 21 | 57880 | -6 | -1.41 | -45 | -4.89 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 11571 | 104 | -29 | -6.12 |
+| 2021 | 28591 | 251 | -34 | -11.77 |
+| 2022 | 22184 | 124 | -31 | -8.91 |
+| half1 | 29217 | 238 | -31 | -9.51 |
+| half2 | 33129 | 241 | -33 | -13.45 |
+
+Controls: placebo (lag 20) z @0 +2.45, @base -14.50 on 45901 trades; planted +50 bps z +27.59 vs actual +3.23 (shift +24.36). Power: 479 days, day-mean SE 2 bps, z = 3 needs 6 bps net per trade. Fills: mean lateness 4.4 min, 49.5% of fills late, 43.0% unfilled.
+
+**i8-up-late_vol_share / smallcap / dev — long, entry 09:35, decision exit `close`**
+
+i8 rule on `late_vol_share` (bottom quintile, selection lift 1.64): match rate 19.3% per day; 12 of 39349 trades made the original one-session move (0.03%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 68432 | 36.8% | 0 | 39349 | 476 | +0 | -20 | -39 | -79 | -614 | 0.421 | -40 | +3 | -13.75 | 8.2% | -14.45 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 31733 | -2 | -1.20 | -39 | -18.04 |
+| 1200 | 29164 | +2 | +0.02 | -33 | -11.71 |
+| close * | 39349 | +0 | -0.32 | -39 | -13.75 |
+| nopen | 39252 | +4 | +0.81 | -35 | -9.86 |
+| 1 | 39252 | -1 | -0.43 | -41 | -8.19 |
+| 5 | 38797 | +5 | +0.01 | -34 | -4.01 |
+| 21 | 36973 | -21 | -0.80 | -60 | -2.57 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 6341 | 102 | -38 | -5.32 |
+| 2021 | 20476 | 250 | -39 | -9.69 |
+| 2022 | 12532 | 124 | -39 | -9.72 |
+| half1 | 18332 | 236 | -36 | -7.55 |
+| half2 | 21017 | 240 | -42 | -13.79 |
+
+Controls: placebo (lag 20) z @0 -0.11, @base -11.91 on 32156 trades; planted +50 bps z +16.71 vs actual -0.32 (shift +17.03). Power: 476 days, day-mean SE 3 bps, z = 3 needs 9 bps net per trade. Fills: mean lateness 3.5 min, 40.3% of fills late, 36.8% unfilled.
+
+**i8-up-late_vol_share / uncapped / dev — long, entry 09:35, decision exit `close`**
+
+i8 rule on `late_vol_share` (bottom quintile, selection lift 1.64): match rate 19.5% per day; 14 of 79249 trades made the original one-session move (0.02%) against a universe base rate of 0.01%.
+
+| candidates | unfilled | held | trades | days | net @0 | net @low | net @base | net @high | net @spec | hit @base | day-mean @base | SE | z @base | top-10 share | z w/o top 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 115432 | 27.4% | 0 | 79249 | 476 | -1 | -17 | -33 | -66 | -529 | 0.430 | -35 | +2 | -15.16 | 8.9% | -14.80 |
+
+Horizon curve (mean excess per trade, bps; z):
+| exit | trades | gross excess | z @0 | net @base | z @base |
+|---|---|---|---|---|---|
+| 1030 | 69240 | -2 | -1.55 | -32 | -19.97 |
+| 1200 | 65516 | +1 | -0.52 | -29 | -14.43 |
+| close * | 79249 | -1 | -0.77 | -33 | -15.16 |
+| nopen | 79001 | +3 | +0.60 | -30 | -10.32 |
+| 1 | 79001 | +0 | -0.18 | -32 | -8.65 |
+| 5 | 77910 | +1 | -0.32 | -32 | -4.47 |
+| 21 | 73715 | -17 | -0.64 | -49 | -2.36 |
+
+Per period (decision exit, base cost):
+| period | trades | days | net | z |
+|---|---|---|---|---|
+| 2020 | 15235 | 102 | -31 | -7.26 |
+| 2021 | 36450 | 250 | -38 | -10.30 |
+| 2022 | 27564 | 124 | -29 | -10.00 |
+| half1 | 36634 | 236 | -34 | -8.76 |
+| half2 | 42615 | 240 | -33 | -14.28 |
+
+Controls: placebo (lag 20) z @0 +0.21, @base -10.92 on 60958 trades; planted +50 bps z +21.09 vs actual -0.77 (shift +21.86). Power: 476 days, day-mean SE 2 bps, z = 3 needs 7 bps net per trade. Fills: mean lateness 2.7 min, 31.1% of fills late, 27.4% unfilled.

@@ -57,7 +57,7 @@ The labeler's output meets the features only inside the backtester.
 | `harness/runrecord.py` | Configuration hash, run log, dev-hash count, reproduce-from-snapshot | 03 Run record | 17 | built |
 | `harness/guards.py` | Holdout unlock; leakage-suite gate (no results written unless the leakage tests pass on this commit) | 02 Leakage tests, 03 | 18 (gate), 11 (holdout) | owed |
 | `experiments/` | Pre-registered one-off studies: the v1 free-data screen (`screen_free_data.py`, frozen), screen 2 (`screen_continuation_crypto.py`) | DECISIONS "Free-data screen" | 15, 39 | complete (null) |
-| `experiments/screen/` | The signal-screening engine (proposal 2026-09-30, section 8): `data.py` pulls, feature panels and parquet cache under `$PENUMBRA_DATA_ROOT/screen/`; `engine.py` event mode (fixed horizon), weekly rank mode, cost schedule, day-clustered z, placebo and planted controls; `signals/<name>.py` one per signal; `v1rule.py` the v1 rule for the regression; `movers.py`; `ledger.py` → `research_log/ledger.md`. CLI `python -m experiments.screen`. Standalone: imports nothing from `harness/`. Shift test per signal in `tests/screen/` | proposal §6–8 | wave 1 | running on `screen/wave-1` |
+| `experiments/screen/` | The signal-screening engine (proposal 2026-09-30, section 8): `data.py` pulls, feature panels and parquet cache under `$PENUMBRA_DATA_ROOT/screen/`; `engine.py` event mode (fixed horizon), weekly rank mode, cost schedule, day-clustered z, placebo and planted controls; `signals/<name>.py` one per signal; `v1rule.py` the v1 rule for the regression; `movers.py`; `ledger.py` → `research_log/ledger.md`. CLI `python -m experiments.screen`. Standalone: imports nothing from `harness/`. Shift test per signal in `tests/screen/` | proposal §6–8 | wave 1, intraday wave | wave 1 complete (`screen/wave-1`); intraday wave complete (`screen/intraday`): `intraday_data.py` session tables from the 5-minute cache, `intraday_engine.py` clock-time fills and chained exits, `intraday_autopsy.py`, CLI `python -m experiments.screen.intraday_cli` |
 | `legacy/` | The migrated news-project harness; only the day-of-week plumbing test uses it. Paths from `config.env` (writes under `$PENUMBRA_DATA_ROOT/legacy/`) | 07 Controls (last line) | 1, 2 | baseline, frozen |
 | `research_log/` | Pre-registration and outcome of every run | 03 | all runs | — |
 
@@ -252,6 +252,17 @@ signals (1a–1e), the extreme-movers study and twelve autopsy-derived rules thr
 `artifact` from survivorship). The v1 rule reproduces through the new engine cell for cell.
 Nothing is built; wave 2 (rank mode on equities) is next, after a rank-mode placebo and a
 power statement are added to the protocol.
+
+### Intraday wave of the screening program (2026-10-07)
+
+`research_log/2026-10-07-intraday-wave.md`, ledger `research_log/ledger.md`: eight catalog
+signals (i1–i8) at clock-time fills on Alpaca's IEX 5-minute bars (`experiments/pull_alpaca_bars.py`
+→ `experiments/screen/intraday_*.py`, `signals/intraday.py`), two equity universes, dev 2020-08 →
+2022-06; 40 of 40 rows `null`, no confirm run, zero graduates. Every gross excess is within −53 to
++34 bps per trade against 20 to 80 bps round trips; the one effect of economic size is the
+overnight premium (+13 bps a night, gross). Intraday data did not change wave 1's conclusion;
+whether anything is tradable is now the cost calibration's question (the quote sample). Nothing
+is built.
 
 ### Open items from the screen
 

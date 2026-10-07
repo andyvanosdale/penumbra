@@ -1,10 +1,10 @@
 ### 2026-10-07 — Intraday wave of the signal-screening program (i1–i8 on 5-minute IEX bars)
 
 **Phase:** 0 (screening program, intraday wave; no build)
-**Commit:** the pre-registration commit is the first commit on `screen/intraday` after the
-merge of `screen/wave-1` and the Alpaca puller branch; the data layer, dev tables, confirm
-tables, ledger and interpretation commits are named in `research_log.md` as they land
-**Status:** running (dev tables written; i8 pass 2 and the confirm era pending)
+**Commit:** `d979e2a` (pre-registration) · `685f776` (data layer, engine, signals, tests, proof) ·
+`a654efd` (basis correction, dev tables, i8 lift table) · the commit that closes this entry (i8
+pass 2, ledger, interpretation) is named in `research_log.md`
+**Status:** complete
 **Branch:** `screen/intraday`
 **Brief:** `andyvanosdale/penumbra-specs` branch `claude/zen-clarke-ocjx6t`,
 `proposals/2026-10-07-intraday-wave-brief.md` (steps A to D; the signal catalog i1–i8; eras,
@@ -655,14 +655,186 @@ No row meets it: the highest z at base cost is +1.38 (i2-down `uncapped`, net +1
 has a trade-weighted mean net excess at base cost above +1 bps. **No catalog row goes to the
 confirm era.** The i8 rules are run next (pass 2), in-sample by construction.
 
+##### i8 pass 2: the six rules as prospective baskets (dev era; in-sample by construction)
+
+Each rule fires on D when the feature's within-day percentile among the universe-eligible names
+with the feature is ≤ 0.2 (every selected lift came from the bottom quintile), fill at 09:35 on
+D+1, decision exit the same-session close. "Made the move" is the number (share) of traded
+candidates whose a_close_F / a_close_{F−1} was ≥ 2.0 (up rules) or ≤ 0.50 (down rules); the base
+rate is the mean over fill sessions of the share of the universe that made the same move.
+`fhh_ret` bottom and `late_vol_share` bottom are the same basket held long (up rules) and short
+(down rules), so those rows mirror each other at zero cost.
+
+| rule | universe | dir | match / day | candidates | unfilled | trades | days | net @0 | @base | @high | z @0 | z @base | top-10 share | z w/o top 10 | half1 / half2 @base | made the move | base rate | realized lift | placebo z @0 | planted shift | interesting |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `i8-up-fhh_vol_share` | smallcap | long | 20.9% | 73,553 | 53% | 30,543 | 479 | +8 | **-37** | -83 | +3.49 | **-12.29** | 8.8% | -12.33 | -39 / -35 | 11 (0.036%) | 0.014% | 2.55 | +2.58 | +17.14 | no |
+| `i8-up-fhh_ret` | smallcap | long | 6.1% | 21,731 | 7% | 19,983 | 479 | -0 | **-30** | -60 | -0.17 | **-6.66** | 9.7% | -7.37 | -35 / -26 | 5 (0.025%) | 0.014% | 1.77 | +0.09 | +10.80 | no |
+| `i8-up-late_vol_share` | smallcap | long | 19.3% | 68,432 | 37% | 39,349 | 476 | +0 | **-39** | -79 | -0.32 | **-13.75** | 8.2% | -14.45 | -36 / -42 | 12 (0.030%) | 0.014% | 2.16 | -0.11 | +17.03 | no |
+| `i8-up-fhh_vol_share` | uncapped | long | 19.8% | 117,111 | 43% | 62,346 | 479 | +6 | **-32** | -70 | +3.23 | **-15.75** | 8.7% | -15.20 | -31 / -33 | 20 (0.032%) | 0.010% | 3.10 | +2.45 | +24.36 | no |
+| `i8-up-fhh_ret` | uncapped | long | 8.4% | 51,011 | 5% | 48,298 | 479 | -4 | **-29** | -55 | -0.92 | **-7.93** | 10.5% | -8.31 | -32 / -27 | 8 (0.017%) | 0.010% | 1.60 | +0.71 | +13.48 | no |
+| `i8-up-late_vol_share` | uncapped | long | 19.5% | 115,432 | 27% | 79,249 | 476 | -1 | **-33** | -66 | -0.77 | **-15.16** | 8.9% | -14.80 | -34 / -33 | 14 (0.018%) | 0.010% | 1.71 | +0.21 | +21.86 | no |
+| `i8-down-close_loc` | smallcap | short | 19.3% | 68,440 | 34% | 42,666 | 479 | -1 | **-38** | -76 | -0.49 | **-15.72** | 8.3% | -15.81 | -37 / -39 | 15 (0.035%) | 0.013% | 2.79 | -0.45 | +20.29 | no |
+| `i8-down-fhh_ret` | smallcap | short | 6.1% | 21,731 | 7% | 19,983 | 479 | +0 | **-30** | -60 | +0.17 | **-6.30** | 11.1% | -5.81 | -24 / -36 | 4 (0.020%) | 0.013% | 1.59 | -0.09 | +10.80 | no |
+| `i8-down-late_vol_share` | smallcap | short | 19.3% | 68,432 | 37% | 39,349 | 476 | -0 | **-39** | -79 | +0.32 | **-13.14** | 9.3% | -13.15 | -43 / -36 | 10 (0.025%) | 0.013% | 2.02 | +0.11 | +17.03 | no |
+| `i8-down-close_loc` | uncapped | short | 19.4% | 115,533 | 25% | 82,877 | 479 | -1 | **-33** | -64 | -0.89 | **-16.32** | 8.8% | -16.33 | -31 / -34 | 18 (0.022%) | 0.009% | 2.43 | -1.49 | +24.22 | no |
+| `i8-down-fhh_ret` | uncapped | short | 8.4% | 51,011 | 5% | 48,298 | 479 | +4 | **-22** | -48 | +0.92 | **-6.06** | 11.4% | -6.12 | -20 / -25 | 7 (0.014%) | 0.009% | 1.62 | -0.71 | +13.48 | no |
+| `i8-down-late_vol_share` | uncapped | short | 19.5% | 115,432 | 27% | 79,249 | 476 | +1 | **-31** | -64 | +0.77 | **-13.65** | 9.2% | -13.77 | -33 / -30 | 16 (0.020%) | 0.009% | 2.26 | -0.21 | +21.86 | no |
+
+Horizon curve, gross excess per trade in bps (z at zero cost):
+
+| rule | universe | 10:30 | 12:00 | close * | next open | 1 | 5 | 21 |
+|---|---|---|---|---|---|---|---|---|
+| `i8-up-fhh_vol_share` | smallcap | +4 (+2.03) | +5 (+2.19) | +8 (+3.49) * | +8 (+2.56) | +3 (+0.89) | +11 (+1.27) | +52 (+2.52) |
+| `i8-up-fhh_ret` | smallcap | +1 (+0.30) | +3 (+0.74) | -0 (-0.17) * | -2 (-0.50) | -1 (-0.33) | +7 (+0.09) | -12 (-0.24) |
+| `i8-up-late_vol_share` | smallcap | -2 (-1.20) | +2 (+0.02) | +0 (-0.32) * | +4 (+0.81) | -1 (-0.43) | +5 (+0.01) | -21 (-0.80) |
+| `i8-up-fhh_vol_share` | uncapped | +2 (+1.61) | +5 (+2.44) | +6 (+3.23) * | +6 (+2.37) | +3 (+1.03) | +1 (+0.20) | -6 (-1.41) |
+| `i8-up-fhh_ret` | uncapped | -1 (+0.10) | -1 (+0.01) | -4 (-0.92) * | -2 (-0.63) | +3 (+0.03) | +20 (+0.84) | +35 (+1.58) |
+| `i8-up-late_vol_share` | uncapped | -2 (-1.55) | +1 (-0.52) | -1 (-0.77) * | +3 (+0.60) | +0 (-0.18) | +1 (-0.32) | -17 (-0.64) |
+| `i8-down-close_loc` | smallcap | -2 (-1.33) | -3 (-1.69) | -1 (-0.49) * | -5 (-1.74) | -3 (-0.79) | -16 (-2.37) | -44 (-2.29) |
+| `i8-down-fhh_ret` | smallcap | -1 (-0.30) | -3 (-0.74) | +0 (+0.17) * | +2 (+0.50) | +1 (+0.33) | -7 (-0.09) | +12 (+0.24) |
+| `i8-down-late_vol_share` | smallcap | +2 (+1.20) | -2 (-0.02) | -0 (+0.32) * | -4 (-0.81) | +1 (+0.43) | -5 (-0.01) | +21 (+0.80) |
+| `i8-down-close_loc` | uncapped | -1 (-1.33) | -1 (-1.36) | -1 (-0.89) * | -4 (-1.71) | -3 (-0.92) | -8 (-1.67) | -33 (-1.97) |
+| `i8-down-fhh_ret` | uncapped | +1 (-0.10) | +1 (-0.01) | +4 (+0.92) * | +2 (+0.63) | -3 (-0.03) | -20 (-0.84) | -35 (-1.58) |
+| `i8-down-late_vol_share` | uncapped | +2 (+1.55) | -1 (+0.52) | +1 (+0.77) * | -3 (-0.60) | -0 (+0.18) | -1 (+0.32) | +17 (+0.64) |
+
+##### i5-all: the overnight leg beside the intraday leg (same names, same sessions)
+
+Equal-weight over the daily universe names with a 09:30 bar, a same-session close and a next
+daily open (median 340 `smallcap`, 671 `uncapped` names a day; 478 sessions): intraday (IEX 09:30
+open → IEX close) **−14.6 bps per day (z −1.56)** `smallcap`, −9.5 (z −1.13) `uncapped`; overnight
+(daily close → next daily open) **+12.8 bps (z +2.46)** and +12.0 (z +2.42); overnight minus
+intraday +27.4 bps (z +2.73) and +21.5 (z +2.33). The Lou–Polk–Skouras shape is in this sample
+gross; a round trip a night at 20 to 80 bps is two to six times the overnight return.
+
+##### Confirm era
+
+No row met the interesting threshold in dev, so **no row was run on the confirm era**
+(2022-07-01 → 2023-12-31): it is unread for all 40 rows of this wave, catalog and i8 alike. The
+holdout (2024 onward) was not downloaded from either source.
+
 #### Interpretation
 
-(After the tables.)
+- **Was the pre-registered "interesting" criterion met?** No, for every row: 28 catalog rows
+  (i1, i2 ×2, i3 ×2, i4, i5 ×3, i6-1a ×2, i6-1b ×2, i7, on two universes) and 12 i8 rows are
+  `null` in dev. The highest z at base cost in the wave is +1.38 (i2-down `uncapped`), and no
+  row's trade-weighted mean net excess at base cost exceeds +1 bps. No confirm run. Zero
+  graduates. The ledger has 40 rows for this wave (76 in all).
+- **What does this tell us about the hypothesis** (do the daily-screen effects and the documented
+  intraday regularities exist at intraday entries, at a size that survives the schedule)?
+  - *The overnight premium (i5) exists gross and is a cost question, as the catalog said.*
+    Buying the whole universe at 15:55 and selling at the next open earned +14 / +13 bps a night
+    (z +3.0 / +2.8; ten of the highest P&L days carry 11%) while the same names lost 15 / 10 bps
+    from the IEX open to the close; the difference is 27 / 22 bps a day (z 2.7 / 2.3). At the
+    base schedule the overnight trade is −23 / −18 bps; it would need a round trip under about
+    12 bps on every name, every night, to break even, before any spread the IEX print hides.
+    Prior overnight return persists: the top quintile earns +9 / +7 bps over the universe
+    overnight and the bottom quintile −6 / −3 (z +4.0 / +3.5 and −2.8 / −1.9), a 15 bps spread
+    with 57,000 to 103,000 trades behind each cell; the random-slice placebo is flat (+0.7 /
+    +0.0), the lag-20 placebo is not (+2.8 / +3.0): the names with high overnight returns are
+    largely the same names month after month, a characteristic rather than an event.
+  - *Gaps (i2): up gaps fade, down gaps continue, and the fade is front-loaded.* A ≥ +2σ open
+    gap bought at 09:35 loses −53 / −19 bps gross to the close and keeps losing: −128 / −65 to
+    the next open, −227 / −140 over five sessions (z −2.3 to −3.9). A ≤ −2σ gap shorted at 09:35
+    earns +34 / +33 gross to the close (z +1.3 / +2.6) and +144 / +99 over 21 sessions (z 2.2).
+    It is the wave-1 asymmetry again (continuation after drops, reversal after volume-driven
+    rises), now visible inside the day. The daily baseline on the same candidates filled at the
+    official open says the first five minutes move *against* the gap: up-gap names lose −95 /
+    −59 bps open-to-close against −53 / −19 from 09:35, and down-gap names lose −62 / −32 for the
+    short from the open against +34 / +33 from 09:35. Caveat: the daily open is the primary
+    auction and the 09:35 price is an IEX print, so part of that 40 to 100 bps is venue and
+    staleness, not price. Net at base the down-gap short is −3 / +1 bps.
+  - *Post-shock next day (i6): the daily continuation is spread thinly through the session.* The
+    −2σ names underperform by +3 bps from 09:35 and +7 from 10:30 to the close (z 2.1 to 2.9),
+    against +8 bps open-to-next-open on the daily bars (z 3.1); the 1b names (+2σ on volume)
+    reverse in the first hour (−28 / −19 gross from 09:35, ≈ 0 from 10:30), as they reversed over
+    5 and 21 sessions in wave 1. Every cell is 25 to 70 bps under water at base cost, and 11 to
+    22% of the shocked names have no IEX print within 15 minutes of the entry time.
+  - *First-half-hour and last-hour momentum (i3, i4): absent.* The first-half-hour deciles earn
+    −3 to +12 bps gross to the close (|z| ≤ 1) and the 09:30 → 15:00 top decile earns +1 bps in
+    the last 25 minutes with a day-mean SE of 1 to 3 bps: a precisely measured zero (the planted
+    +50 bps moves z by 20 to 36). Gao, Han, Li and Zhou's effect is an index-level finding in
+    SPY; it does not appear in the cross-section of 40%-vol names at this resolution.
+  - *Opening-range breakout (i1) and VWAP give-back (i7): too few names to decide, and nothing
+    in the point estimates.* With the coverage floor the shape rows run on a median of 29
+    (`smallcap`) and 125 (`uncapped`) names a day; i1 fires 251 / 1,367 times in 23 months and
+    earns +20 / +21 bps gross (z 0.5 / 1.4), i7 fires 282 / 957 times and earns +16 / +0. Both are
+    below the counts floor and both are a cost away from zero.
+  - *Autopsy (i8): the day-before look of a one-session doubler or halver is "thin".* The movers'
+    D−1 features with lift are low first-half-hour volume share, low (or missing) first-half-hour
+    return, low late-day volume share and a close near the low: the signature of a name with few
+    IEX prints. As prospective baskets they match 6 to 21% of the universe a day, 5 to 53% of
+    the candidates have no 09:35 print, the realized lift for the original move is 1.6 to 3.1
+    on a base rate of 0.01 to 0.04%, and the baskets earn −4 to +8 bps gross; the one gross-
+    positive cell (`i8-up-fhh_vol_share`, +8 / +6 bps, z +3.5 / +3.2) has a lag-20 placebo of
+    +2.6 / +2.5: a characteristic of thin names on IEX prints, not an event. Twelve `null`.
+  - *Costs decide the wave.* Every gross excess in the wave lies within −53 to +34 bps per
+    trade and most within ±20; the base round trips are 20 to 80 bps. At the owner's latency
+    (a clock-time fill, no spread crossed in the measurement), nothing intraday adds to what
+    the daily fill already showed in wave 1: small gross drifts of the right sign and the wrong
+    size.
+- **What does it tell us about the harness?** The controls behaved: the lag-20 placebo is flat
+  (|z| < 2) for every event row; where it fires (i5-all, which is the premium itself; i5-q5 and
+  `i8-up-fhh_vol_share`, +2.5 to +3.0) the random-slice placebo is flat, so the new control did
+  what wave 1 asked of it, separating a persistent characteristic from an event. The planted
+  +50 bps moved z by 1 to 55 units: the dense rows (i4, i5, i8) have day-mean SEs of 1 to 7 bps
+  and would have resolved a 10-bps edge; i1 and i7 (SE 22 to 68 bps) would not have resolved
+  50. Three things the wave taught: (1) yfinance's `Close` is split-adjusted even with
+  `auto_adjust=False`, so a ratio of a raw venue price to a yfinance price is wrong by every
+  later split; returns that cross a data source must be chained at a common timestamp, never
+  divided across one. (2) IEX half days carry a handful of after-hours prints from 13:00 on;
+  early closes have to be detected by density, not by the last print. (3) IEX coverage is the
+  binding constraint on any session-shape rule: at 60 bars on each of 20 sessions the universe
+  shrinks 25-fold, and a quarter to a third of fills at a clock time are a bar or more late.
+- **Confidence.** High for the i3, i4, i5, i6 and i8 nulls: tens of thousands of trades, SEs of
+  1 to 16 bps, estimates 2 to 40 standard errors below the bar, every bias in the sample
+  (survivorship, spread-free IEX entries) favouring the long rows. Medium for i2 (1,060 to
+  2,646 trades; the direction is clear, the size is not). Low-to-medium for i1 and i7: a few
+  hundred trades on a few dozen names, underpowered against a 50-bps bar by a factor of three,
+  but with point estimates of +0 to +21 bps gross that a tenfold sample would be unlikely to
+  turn into +50 net. The eras are 23 and 18 months in two unusual regimes; the dev nulls hold
+  in both halves and in each calendar year for every dense row.
 
 #### Next action (per the pre-registered decision rules)
 
-(After the tables.)
+1. **Rule 1 (every row `null`): no confirm run, no further variant, no build.** The confirm era
+   stays unread for the whole wave.
+2. **Rule 3 (nothing graduates): what the nulls rule out, for the owner's review.** On a
+   current-listing universe of 40%-vol common stocks with IEX 5-minute prints, at clock-time
+   fills and the flat schedule: the overnight premium, gap continuation and fade, post-shock
+   intraday drift, first-half-hour and last-hour momentum, opening-range breakouts and VWAP
+   reversion are each at most 35 bps gross per trade and none is within reach of a 20-bps round
+   trip. Intraday data did not change the wave-1 conclusion; it measured the same small drifts
+   at a finer grain. The program's next step is the review the proposal's section 9 names when
+   a wave ends without a graduate. Two facts for that review: the one gross effect of
+   economic size is the overnight premium (+13 bps a night, about 35% a year universe-wide,
+   before any cost), and whether anything here is tradable is now a cost-calibration question
+   (the quote sample) rather than a signal question.
+3. **Rule 4:** the i8 lift table is filed as hypothesis material; the three pre-registrations
+   per direction are spent.
+4. **Rule 5:** the holdout is untouched; no purchase. The brief's "longer history" purchase is
+   not triggered (it was conditional on a graduate).
+5. **Record in `penumbra-specs`:** this entry, the ledger, the two data lessons (split-adjusted
+   yfinance closes; IEX early closes) and the cost-first conclusion, as a separate PR on that
+   repo, not from this branch.
 
 #### Open questions / followups
 
-(After the tables.)
+- **The first five minutes.** The daily-open baselines and the 09:35 fills disagree by 40 to
+  100 bps on the gap candidates, in the direction of a reversal burst at the open. Venue and
+  staleness explain part of it; a SIP-based 1-minute sample on the same days would say how much
+  is price. Not pre-registered here; not computed.
+- **The overnight premium at a lower cost.** +13 bps a night on the whole universe, −15 to −10
+  intraday on the same names: the shape is the published one. A long-only overnight book turns
+  its capital every night, so its viability is the round trip under 12 bps; that is the quote
+  sample's question, and the liquid tier of the schedule (10 / 20 / 40) already brackets it.
+- **IEX coverage.** The floored universe is 29 / 125 names; a consolidated feed (Alpaca's SIP
+  tier or Polygon) would widen the shape rows tenfold and give real opening prints. Whether that
+  purchase is worth making for rows whose liquid-name point estimates are +0 to +21 bps gross is
+  the owner's call; this wave's reading is no.
+- **Fill lateness.** 23 to 41% of clock-time fills are one or more bars late and 10 to 50% of
+  the thin candidates (i6, i8) have no print within 15 minutes. A live system would see the
+  same: the universe that can be filled at a clock time on IEX is the liquid tail.
+- **Down-gap continuation** (+33 bps gross to the close, +99 to +144 over 21 sessions, z ≈ 2.2)
+  is the wave's one directional read of a size comparable to wave 1's 1a. As a long-avoidance
+  rule (do not buy a −2σ gap for a month) it costs nothing; as a trade it does not clear the
+  schedule.

@@ -1,0 +1,7 @@
+selected_on,group,direction,feature,side,lift,events,rule
+uncapped,up2x1,long,fhh_vol_share,bottom,2.2727272727272725,55,i8-up-fhh_vol_share
+uncapped,up2x1,long,fhh_ret,bottom,2.1052631578947367,19,i8-up-fhh_ret
+uncapped,up2x1,long,late_vol_share,bottom,1.6363636363636362,55,i8-up-late_vol_share
+uncapped,down50_1,short,close_loc,bottom,1.7346938775510203,49,i8-down-close_loc
+uncapped,down50_1,short,fhh_ret,bottom,1.5909090909090908,22,i8-down-fhh_ret
+uncapped,down50_1,short,late_vol_share,bottom,1.530612244897959,49,i8-down-late_vol_share

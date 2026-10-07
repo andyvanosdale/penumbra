@@ -78,6 +78,29 @@ Copy this block for each new experiment. File naming: `research_log/YYYY-MM-DD-s
 
 ---
 
+## 2026-10-07 — Intraday wave of the screening program (i1–i8 on 5-minute IEX bars): no graduate
+
+**Pre-registered:** d979e2a · **data layer and shift tests:** 685f776 · **basis correction, dev tables,
+i8 lift table:** a654efd · **i8 pass 2, ledger, interpretation:** the commit after a654efd on
+`screen/intraday`. Eight catalog signals (opening-range breakout, gap continuation and fade,
+first-half-hour and last-hour momentum, overnight versus intraday, wave 1's post-shock events at
+intraday entries, VWAP give-back, and the intraday autopsy of one-session doublers and halvers) at
+clock-time fills on Alpaca's IEX 5-minute bars, dev 2020-08 → 2022-06, two equity universes, under
+the wave-1 protocol plus a coverage floor, a random-slice placebo and a power statement. 40 of 40
+ledger rows `null` in dev; no confirm run; zero graduates. Every gross excess lies within −53 to
++34 bps per trade against 20 to 80 bps round trips. Gross effects of the right sign and the wrong
+size: the overnight premium (+13 bps a night universe-wide, z +2.8, the same names −10 to −15 bps
+intraday), up gaps fade and down gaps continue (−53 / +34 bps to the close, growing for days),
+post-shock drift spread thinly through the next session (+3 to +7 bps), first-half-hour and
+last-hour momentum absent (+1 bps with an SE of 1 to 3). Two data lessons: yfinance's `Close` is
+split-adjusted, so a raw venue price must never be divided by it (returns are chained at the
+session close; the pre-fix tables are kept); IEX half days carry after-hours prints, so early
+closes are detected by density. The IEX coverage floor leaves 29 / 125 names a day. Holdout
+untouched; the confirm era unread. Full entry: `2026-10-07-intraday-wave.md`; files in
+`2026-10-07-intraday-wave/`; ledger: `ledger.md`.
+
+---
+
 ## 2026-10-01 — Wave 1 of the signal-screening program (1a–1e, extreme movers, autopsy to rule): no graduate
 
 **Pre-registered:** af23489 (amendment cbc3c67) · **engine:** 6343335, 59c8d43, f912434 · **data and
@@ -183,3 +206,20 @@ Running list of hard-won lessons. Add to it whenever you find a bug or a near-mi
   portfolio shows an 18 pp a year "premium" in both eras with every control that can pass
   passing. It is the survivorship bias, not an edge; no long, slow, cheap-name equity rule can be
   decided on free data.
+- (2026-10-07, intraday wave) yfinance's `Close` is split-adjusted even with `auto_adjust=False`
+  (only dividends are left out), so `adj_close / close` undoes dividends, not splits, and a raw
+  venue price divided by a yfinance price is wrong by every later split (KUST: a factor of
+  millions). A return that crosses two price sources must chain two legs at a shared timestamp
+  (here the session close), never divide across them. A test that scales one source by 10 and
+  asserts every return is unchanged catches it.
+- (2026-10-07, intraday wave) IEX 13:00 half days still carry a handful of after-hours prints from
+  13:00 on, so "no bar after 13:00" finds no early close. Detect them by the afternoon bar share
+  across all names (< 30% of the morning's), and drop the afternoon bars as extended hours.
+- (2026-10-07, intraday wave) On a 2–3%-share venue the coverage floor is the binding constraint:
+  60 prints a session on 20 consecutive sessions leaves 29 of 732 `smallcap` names, and 25 to 40%
+  of clock-time fills are a bar late. Session-shape rules on IEX bars are tests on the liquid tail
+  only; a consolidated feed is the fix, and it costs money.
+- (2026-10-07, intraday wave) Intraday horizons measure zero very precisely (day-mean SEs of 1 to
+  7 bps on the dense rows), so the 50-bps bar is purely the cost schedule's. An intraday row on
+  this universe can only pass if a quote sample shows round trips near 10 bps; intraday screening
+  is a cost-calibration question before it is a signal question.
