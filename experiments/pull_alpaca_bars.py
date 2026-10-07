@@ -20,6 +20,16 @@ Pull 1-minute bars for a subset or a shorter window (much larger):
     python experiments/pull_alpaca_bars.py --timeframe 1Min --start 2021-01-01 \
         --symbols-file my_symbols.csv --out ~/penumbra-data/alpaca
 
+This script fetches only the intraday bars, which need your key. The screens also need
+the daily cache (universe list, market caps, yfinance daily bars), which is free and is
+built by the screen package against the same data root:
+
+    export PENUMBRA_DATA_ROOT=~/penumbra-data
+    python -m experiments.screen pull --caps --equity     # about 40 minutes
+    python experiments/pull_alpaca_bars.py --out $PENUMBRA_DATA_ROOT/alpaca
+
+Every wave's brief lists its datasets and the command that produces each one.
+
 What it does:
   * Universe: the same Nasdaq Trader common-stock filter the free-data screen used
     (experiments/screen_free_data.py), downloaded fresh unless --symbols-file is given
