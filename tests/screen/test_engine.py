@@ -401,18 +401,21 @@ def test_ledger_migration_keeps_the_76_rows(tmp_path, monkeypatch):
     from experiments.screen import ledger
     src = ledger.LEDGER
     before = ledger.read()
-    assert len(before) == 76
+    legacy = before[before["family_n"] == "n/a"]
+    assert len(legacy) == 76                     # the wave-1 and intraday rows, migrated with n/a in the five new columns
+    # a pre-wave-2 ledger (14 columns) migrates on the first write and re-reads unchanged
+    old_header = "| date | signal | variant | universe | pre-reg commit | mode | decision horizon | dev z | dev mean net | dev n | confirm z | confirm mean net | verdict | entry |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
+    legacy_lines = ["| " + " | ".join(str(r[c]) for c in ledger.LEGACY_COLUMNS) + " |" for _, r in legacy.iterrows()]
     tmp = tmp_path / "ledger.md"
-    tmp.write_text(src.read_text())
+    tmp.write_text("# Signal ledger\n\n" + old_header + "\n".join(legacy_lines) + "\n")
     monkeypatch.setattr(ledger, "LEDGER", tmp)
-    legacy_cells = [c.strip() for c in src.read_text().splitlines()[-1].strip().strip("|").split("|")]
     df = ledger.upsert([])                      # migrates the header once
     assert len(df) == 76 and list(df.columns) == ledger.COLUMNS
     assert (df[["family_n", "p_sidak", "random", "lag250", "mirror"]] == "n/a").all().all()
     again = ledger.read()
     assert again.equals(df)                      # re-read unchanged
-    for c, val in zip(ledger.LEGACY_COLUMNS, legacy_cells):
-        assert str(again.iloc[-1][c]) == val    # every legacy cell survives
+    for c in ledger.LEGACY_COLUMNS:
+        assert again[c].tolist() == legacy[c].tolist()   # every legacy cell survives
     assert "| family_n | p_sidak | random | lag250 | mirror | entry |" in tmp.read_text()
     ledger.upsert([{"date": "2026-10-08", "signal": "2a", "variant": "v1", "universe": "uncapped", "verdict": "null", "family_n": "9", "entry": "x"}])
     assert len(ledger.read()) == 77
