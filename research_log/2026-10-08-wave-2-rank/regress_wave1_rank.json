@@ -1,0 +1,5 @@
+{
+  "source": "research_log/2026-10-01-wave-1-screen",
+  "atol": 5e-07,
+  "status": "skipped: klines_1d.parquet absent (Binance 1d klines were not pulled on this machine)"
+}

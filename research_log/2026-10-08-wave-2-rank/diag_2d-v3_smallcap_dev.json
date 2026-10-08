@@ -1,0 +1,124 @@
+{
+  "vintage": [
+    {
+      "year": 2011,
+      "eligible_mean": 104.25,
+      "held_mean": 11.0,
+      "held_first_seen_after_start": 0.06818181818181818
+    },
+    {
+      "year": 2016,
+      "eligible_mean": 93.66666666666667,
+      "held_mean": 10.0,
+      "held_first_seen_after_start": 0.36666666666666664
+    },
+    {
+      "year": 2018,
+      "eligible_mean": 111.85714285714286,
+      "held_mean": 11.571428571428571,
+      "held_first_seen_after_start": 0.4567901234567901
+    },
+    {
+      "year": 2019,
+      "eligible_mean": 100.93333333333334,
+      "held_mean": 10.666666666666666,
+      "held_first_seen_after_start": 0.51875
+    },
+    {
+      "year": 2020,
+      "eligible_mean": 184.6888888888889,
+      "held_mean": 18.955555555555556,
+      "held_first_seen_after_start": 0.5146541617819461
+    }
+  ],
+  "spearman_2a_2b_median": 0.5390271493212669,
+  "top_decile_overlap_2a_2b_median": 0.11764705882352941,
+  "score_rank_spearman_D_vs_D250_median": 0.008437692793392846,
+  "price_quintile_shares_by_year": {
+    "2011": [
+      0.2273,
+      0.2045,
+      0.1364,
+      0.1818,
+      0.25
+    ],
+    "2016": [
+      0.3,
+      0.2,
+      0.1667,
+      0.1333,
+      0.2
+    ],
+    "2018": [
+      0.3457,
+      0.179,
+      0.1605,
+      0.142,
+      0.1728
+    ],
+    "2019": [
+      0.25,
+      0.1812,
+      0.1625,
+      0.1438,
+      0.2625
+    ],
+    "2020": [
+      0.2743,
+      0.1958,
+      0.1524,
+      0.1594,
+      0.2181
+    ]
+  },
+  "calendar_month": {
+    "1": {
+      "periods": 3,
+      "mean_diff_base": 0.00531335449603957
+    },
+    "2": {
+      "periods": 7,
+      "mean_diff_base": -0.0016735682301223104
+    },
+    "3": {
+      "periods": 6,
+      "mean_diff_base": 0.00949323218775981
+    },
+    "4": {
+      "periods": 4,
+      "mean_diff_base": 0.10037440143763449
+    },
+    "5": {
+      "periods": 6,
+      "mean_diff_base": 0.0026838720062147482
+    },
+    "6": {
+      "periods": 5,
+      "mean_diff_base": -0.0465574254260097
+    },
+    "7": {
+      "periods": 4,
+      "mean_diff_base": -0.03334626062358067
+    },
+    "8": {
+      "periods": 12,
+      "mean_diff_base": -0.013626062208696185
+    },
+    "9": {
+      "periods": 10,
+      "mean_diff_base": 0.020962246702426413
+    },
+    "10": {
+      "periods": 6,
+      "mean_diff_base": -0.01610510415110497
+    },
+    "11": {
+      "periods": 10,
+      "mean_diff_base": 0.035579780698889854
+    },
+    "12": {
+      "periods": 8,
+      "mean_diff_base": 0.009332377447188083
+    }
+  }
+}

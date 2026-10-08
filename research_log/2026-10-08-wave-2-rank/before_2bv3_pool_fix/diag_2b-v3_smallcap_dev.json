@@ -1,0 +1,215 @@
+{
+  "vintage": [
+    {
+      "year": 2010,
+      "eligible_mean": 94.0909090909091,
+      "held_mean": 4.818181818181818,
+      "held_first_seen_after_start": 0.0
+    },
+    {
+      "year": 2011,
+      "eligible_mean": 102.5,
+      "held_mean": 5.833333333333333,
+      "held_first_seen_after_start": 0.02857142857142857
+    },
+    {
+      "year": 2012,
+      "eligible_mean": 65.25,
+      "held_mean": 0.8333333333333334,
+      "held_first_seen_after_start": 0.0
+    },
+    {
+      "year": 2013,
+      "eligible_mean": 58.416666666666664,
+      "held_mean": 0.0,
+      "held_first_seen_after_start": 0.0
+    },
+    {
+      "year": 2014,
+      "eligible_mean": 81.91666666666667,
+      "held_mean": 5.416666666666667,
+      "held_first_seen_after_start": 0.2
+    },
+    {
+      "year": 2015,
+      "eligible_mean": 104.25,
+      "held_mean": 8.0,
+      "held_first_seen_after_start": 0.3020833333333333
+    },
+    {
+      "year": 2016,
+      "eligible_mean": 117.33333333333333,
+      "held_mean": 10.083333333333334,
+      "held_first_seen_after_start": 0.23140495867768596
+    },
+    {
+      "year": 2017,
+      "eligible_mean": 105.08333333333333,
+      "held_mean": 11.25,
+      "held_first_seen_after_start": 0.34074074074074073
+    },
+    {
+      "year": 2018,
+      "eligible_mean": 135.66666666666666,
+      "held_mean": 14.5,
+      "held_first_seen_after_start": 0.4942528735632184
+    },
+    {
+      "year": 2019,
+      "eligible_mean": 153.66666666666666,
+      "held_mean": 16.0,
+      "held_first_seen_after_start": 0.4427083333333333
+    },
+    {
+      "year": 2020,
+      "eligible_mean": 325.75,
+      "held_mean": 33.0,
+      "held_first_seen_after_start": 0.5151515151515151
+    },
+    {
+      "year": 2021,
+      "eligible_mean": 331.0,
+      "held_mean": 34.0,
+      "held_first_seen_after_start": 0.6470588235294118
+    }
+  ],
+  "spearman_2a_2b_median": 0.06477170802949553,
+  "top_decile_overlap_2a_2b_median": 0.1,
+  "score_rank_spearman_D_vs_D250_median": 0.11092318534178998,
+  "price_quintile_shares_by_year": {
+    "2010": [
+      0.1509,
+      0.0943,
+      0.2642,
+      0.2642,
+      0.2264
+    ],
+    "2011": [
+      0.1,
+      0.1,
+      0.2429,
+      0.1571,
+      0.4
+    ],
+    "2012": [
+      0.0,
+      0.3,
+      0.2,
+      0.0,
+      0.5
+    ],
+    "2013": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "2014": [
+      0.0769,
+      0.2615,
+      0.2462,
+      0.2615,
+      0.1538
+    ],
+    "2015": [
+      0.1042,
+      0.2604,
+      0.2292,
+      0.3125,
+      0.0938
+    ],
+    "2016": [
+      0.157,
+      0.2727,
+      0.2314,
+      0.2314,
+      0.1074
+    ],
+    "2017": [
+      0.1333,
+      0.1926,
+      0.2444,
+      0.2963,
+      0.1333
+    ],
+    "2018": [
+      0.0805,
+      0.2471,
+      0.2356,
+      0.2586,
+      0.1782
+    ],
+    "2019": [
+      0.0938,
+      0.151,
+      0.2031,
+      0.2917,
+      0.2604
+    ],
+    "2020": [
+      0.101,
+      0.1364,
+      0.2096,
+      0.2727,
+      0.2803
+    ],
+    "2021": [
+      0.0588,
+      0.2941,
+      0.2941,
+      0.2647,
+      0.0882
+    ]
+  },
+  "calendar_month": {
+    "1": {
+      "periods": 7,
+      "mean_diff_base": -0.021925309346333095
+    },
+    "2": {
+      "periods": 7,
+      "mean_diff_base": -0.014001950868336669
+    },
+    "3": {
+      "periods": 7,
+      "mean_diff_base": 0.007140749357899858
+    },
+    "4": {
+      "periods": 6,
+      "mean_diff_base": -0.007149367852677928
+    },
+    "5": {
+      "periods": 6,
+      "mean_diff_base": -0.005081336394931275
+    },
+    "6": {
+      "periods": 6,
+      "mean_diff_base": 0.02935299134885715
+    },
+    "7": {
+      "periods": 6,
+      "mean_diff_base": 0.027115885392939392
+    },
+    "8": {
+      "periods": 6,
+      "mean_diff_base": -0.003672340133263577
+    },
+    "9": {
+      "periods": 7,
+      "mean_diff_base": -0.0097619191886817
+    },
+    "10": {
+      "periods": 7,
+      "mean_diff_base": -0.01903022454169381
+    },
+    "11": {
+      "periods": 7,
+      "mean_diff_base": -0.03125558061409224
+    },
+    "12": {
+      "periods": 7,
+      "mean_diff_base": -0.0009544593624281002
+    }
+  }
+}

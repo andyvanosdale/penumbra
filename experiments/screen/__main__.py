@@ -243,14 +243,14 @@ def _diag(A, mask, res, spec, era_name) -> dict:
     first_bar = pd.Series(A["panel"].groupby("ticker")["date"].min()).reindex(A["tickers"])
     late = (first_bar > A["cal"][0]).to_numpy()
     years = wk["year"].to_numpy()
+    valid = wk["valid"].to_numpy()
     vint = []
-    for y in sorted(set(years[~np.isnan(years.astype(float))].astype(int))):
-        m = years == y
+    for y in sorted(set(years[valid].astype(int))):
+        m = (years == y) & valid
         held = sets["basket"][m]
         vint.append({"year": int(y), "eligible_mean": float(sets["n"][m].mean()), "held_mean": float(held.sum(axis=1).mean()),
                      "held_first_seen_after_start": float((held & late[None, :]).sum() / max(held.sum(), 1))})
     sp, ov, stab = [], [], []
-    sc250 = data.shift_rows(sets["score"].astype(float), 0)  # placeholder shape
     score_full = res.get("score_full")
     for i, d in enumerate(D):
         r = sets["ranked"][i]
@@ -261,8 +261,8 @@ def _diag(A, mask, res, spec, era_name) -> dict:
         if score_full is not None and d - engine.PLACEBO_LAG_LONG >= 0:
             stab.append(_spearman(np.where(r, score_full[d], np.nan), np.where(r, score_full[d - engine.PLACEBO_LAG_LONG], np.nan)))
     q_shares = {}
-    for y in sorted(set(years.astype(int))):
-        m = years == y
+    for y in sorted(set(years[valid].astype(int))):
+        m = (years == y) & valid
         qs = np.zeros(5); tot = 0
         for i in np.nonzero(m)[0]:
             q = engine._quintiles(A["close"][D[i]], sets["comp"][i])

@@ -285,7 +285,7 @@ def test_random_draw_count_and_leaving_name_rule():
     ranked = np.ones((P, N), dtype=bool)
     ranked[3, :20] = False                    # names 0..19 leave the ranked set on date 3
     k = np.array([12, 12, 12, 12, 15, 10]); tau = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    sets = {"ranked": ranked}
+    sets = {"ranked": ranked, "comp": ranked}
     B = engine.random_baskets(sets, k, tau, 1, engine.RANDOM_SEED)
     assert (B.sum(axis=1) == k).all()
     assert not (B & ~ranked).any()
@@ -299,6 +299,10 @@ def test_random_draw_count_and_leaving_name_rule():
     # hold 3: the kept names come from the tranche formed three dates earlier
     B3 = engine.random_baskets(sets, np.full(P, 12), np.zeros(P), 3, 7)
     assert (B3[3] & B3[0] & ranked[3]).sum() == (B3[0] & ranked[3]).sum()
+    # 2b V3: the pool is the comparator (full) set, not the top-half ranked set
+    full = np.ones((P, N), dtype=bool); half = full.copy(); half[:, 30:] = False
+    Bf = engine.random_baskets({"ranked": half, "comp": full}, np.full(P, 12), np.zeros(P), 1, 3)
+    assert Bf[:, 30:].any()
 
 
 def test_rank_equity_end_to_end_and_scale_by_10():

@@ -732,12 +732,13 @@ def aggregate_periods(fills: pd.DataFrame, R: np.ndarray, liq: np.ndarray, sets:
 
 
 def random_baskets(sets: dict, k: np.ndarray, tau: np.ndarray, hold: int, seed: int) -> np.ndarray:
-    """One random-slice draw: each date holds k_t names of the ranked set, keeping a held name
+    """One random-slice draw: each date holds k_t names of the comparator set (the ranked set;
+    the full ranked set for 2b V3, whose actual basket comes from the top half of 2a), keeping a held name
     (from the basket formed `hold` periods earlier) with probability 1 - tau_t, dropping names that
     left the ranked set, trimming uniformly when k falls and refilling uniformly from the unheld
     ranked names. One default_rng(seed) per draw."""
     rng = np.random.default_rng(seed)
-    ranked = sets["ranked"]
+    ranked = sets["comp"]   # the draw pool is the comparator set: the ranked set, or the full set for 2b V3 (locked rule)
     P, N = ranked.shape
     B = np.zeros((P, N), dtype=bool)
     for t in range(P):
