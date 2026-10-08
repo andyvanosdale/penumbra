@@ -7,7 +7,8 @@
     UNIVERSES   universes the signal runs on
     candidates(A) -> bool matrix (event mode): the raw rule on the as-of arrays, data
                      through D's close in row D; the engine ANDs it with the universe
-    scores(A) / position(A) (rank mode)
+    scores(A) / position(A) (rank mode); scores(A, variant) for the wave-2 equity rank
+                     signals, with LANE = "equity", PPY, SIDE, VARIANTS and PRIOR_PP
 
 A signal reads only the arrays `data.build_arrays` provides. `tests/screen/test_shift.py`
 perturbs every bar after D and asserts the matrix at D is unchanged, for every module here.
@@ -25,6 +26,9 @@ REGISTRY = {
     "1c-long": "experiments.screen.signals.s1c_slide_long",
     "1d": "experiments.screen.signals.s1d_ts_mom",
     "1e": "experiments.screen.signals.s1e_xs_mom",
+    "2a": "experiments.screen.signals.s2a_mom_12_1",
+    "2b": "experiments.screen.signals.s2b_high_52w",
+    "2d": "experiments.screen.signals.s2d_weekly_reversal",
 }
 
 

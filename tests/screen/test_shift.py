@@ -14,6 +14,7 @@ from tests.screen._synth import crypto_klines, equity_bars, perturb_after
 
 EVENT = ["v1", "1a", "1b-5d", "1b-21d", "1c-short", "1c-long"]
 RANK = ["1d", "1e"]
+RANK += ["2a", "2b", "2d"]   # wave 2: equity rank signals (scores on the as-of arrays)
 
 
 def _matrix(sig, A):
@@ -75,7 +76,7 @@ def test_universe_and_features_at_D_are_unchanged_by_bars_after_D(equity_pair):
     cut, A1, A2 = equity_pair
     row = A1["cal"].get_loc(cut)
     for key in ("in_universe", "shock", "zscore_20", "vol_pctl_250", "vol_ratio_20", "ret_21", "ret_30", "ret_90",
-                "med_dv_20_prev", "close_to_high_250"):
+                "med_dv_20_prev", "close_to_high_250", "ret_12_1", "close_to_max_close_250", "ret_5"):
         _same_through(row, np.asarray(A1[key], dtype=float), np.asarray(A2[key], dtype=float))
 
 
@@ -87,6 +88,9 @@ def test_every_signal_fires_on_the_synthetic_panel(equity_pair, crypto_pair):
     _, C, _ = crypto_pair
     assert signals.load("1d").position(C).sum() > 0
     assert np.isfinite(signals.load("1e").scores(C)).sum() > 0
+    for name in ("2a", "2b", "2d"):
+        assert np.isfinite(signals.load(name).scores(A)).sum() > 0, name
+    assert np.isfinite(signals.load("2d").scores(A, "v3")).sum() > 0
 
 
 def test_registry_modules_declare_the_interface():
@@ -95,3 +99,5 @@ def test_registry_modules_declare_the_interface():
         assert sig.NAME == name and sig.MODE in ("event", "rank", "v1") and sig.UNIVERSES
         if sig.MODE in ("event", "v1"):
             assert sig.DIRECTION in ("long", "short") and sig.HORIZON in (5, 21)
+        if getattr(sig, "LANE", None) == "equity":
+            assert sig.PPY in (12, 52) and sig.SIDE in ("top", "bottom") and set(sig.VARIANTS) == {"v1", "v2", "v3"} and sig.PRIOR_PP > 0

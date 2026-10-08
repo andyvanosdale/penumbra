@@ -12,7 +12,10 @@ import pandas as pd
 
 LEDGER = Path(__file__).resolve().parents[2] / "research_log" / "ledger.md"
 COLUMNS = ["date", "signal", "variant", "universe", "pre_reg_commit", "mode", "decision_horizon",
-           "dev_z", "dev_mean_net", "dev_n", "confirm_z", "confirm_mean_net", "verdict", "entry"]
+           "dev_z", "dev_mean_net", "dev_n", "confirm_z", "confirm_mean_net", "verdict",
+           "family_n", "p_sidak", "random", "lag250", "mirror", "entry"]
+LEGACY_COLUMNS = [c for c in COLUMNS if c not in ("family_n", "p_sidak", "random", "lag250", "mirror")]  # the header before wave 2
+WAVE2_FILL = "n/a"
 HEADER = """# Signal ledger
 
 One row per signal, variant and universe that has been run through the screening engine
@@ -25,10 +28,17 @@ weighted mean net excess per trade in bps (event mode) or the annualized net exc
 the comparator in percentage points (rank mode); `dev n` is trades / entry days (event) or
 weeks (rank). Verdicts: `null`, `confirm`, `graduate`, `fails confirm`, `artifact`
 (definitions in the entry's pre-registration). A fourth variant of a signal raises its dev
-z bar to 3.5 and is flagged here.
+z bar to 3.5 and is flagged here. Wave 2 (`2026-10-08-wave-2-rank.md`, rank mode on
+equities under the rank-mode v2 bar) adds `family_n` (rows that can graduate in the wave),
+`p_sidak` = 1 − (1 − p_dev)^family_n, and the three placebo columns `random` (rank of the
+actual net excess among itself and the 200 random slices), `lag250` (the lag-250 placebo's
+zero-cost z) and `mirror` (the opposite slice's zero-cost z); for wave-2 rows `dev z` is
+z_gate = min(z_plain, z_nw) at base and `dev n` carries the MDE80. Earlier rows read `n/a`
+in the new columns. Wave-2 verdicts add `characteristic`, `insufficient` and
+`diagnostic-pass` (`smallcap`, non-graduating); `graduate` is not awarded in wave 2 (C8).
 
-| date | signal | variant | universe | pre-reg commit | mode | decision horizon | dev z | dev mean net | dev n | confirm z | confirm mean net | verdict | entry |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| date | signal | variant | universe | pre-reg commit | mode | decision horizon | dev z | dev mean net | dev n | confirm z | confirm mean net | verdict | family_n | p_sidak | random | lag250 | mirror | entry |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 """
 
 
@@ -42,6 +52,11 @@ def read() -> pd.DataFrame:
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) == len(COLUMNS):
             rows.append(dict(zip(COLUMNS, cells)))
+        elif len(cells) == len(LEGACY_COLUMNS):  # a row written before wave 2: migrated on the next write
+            row = dict(zip(LEGACY_COLUMNS, cells))
+            for c in COLUMNS:
+                row.setdefault(c, WAVE2_FILL)
+            rows.append(row)
     return pd.DataFrame(rows, columns=COLUMNS)
 
 

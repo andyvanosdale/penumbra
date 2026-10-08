@@ -295,6 +295,87 @@ def market_caps() -> pd.Series:
     return caps.drop_duplicates("symbol").set_index("symbol")["market_cap"]
 
 
+# ================================================================ stage: split actions (wave 2, floor diagnostic only)
+def _one_split(t: str) -> list:
+    import yfinance as yf
+    err = ""
+    for attempt in range(3):
+        try:
+            sp = yf.Ticker(t).splits
+            return [] if sp is None or len(sp) == 0 else [[str(pd.Timestamp(d).tz_localize(None).date()), float(v)] for d, v in sp.items()]
+        except Exception as e:  # noqa: BLE001
+            err = repr(e)[:120]
+            time.sleep(2 * (attempt + 1))
+    return [["error", err]]
+
+
+def stage_splits(budget_s: float | None = None, workers: int = 4, log_every: int = 100) -> dict:
+    """Split actions through the pull date for every ticker with bars: one yfinance request per
+    ticker, resumable (progress in raw/universe/splits_progress.jsonl), dates and ratios only.
+    Writes raw/universe/splits.parquet (ticker, date, ratio new/old) when every ticker is done;
+    stops early, leaving the progress file, when `budget_s` is exceeded."""
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+    R = roots()
+    prog = R.uni / "splits_progress.jsonl"
+    done: dict[str, list] = {}
+    if prog.exists():
+        for line in prog.read_text().splitlines():
+            if line.strip():
+                rec = json.loads(line)
+                done[rec["ticker"]] = rec["splits"]
+    tickers = sorted(set().union(*(set(pd.read_parquet(p, columns=["ticker"])["ticker"].unique()) for p in R.yf.glob("batch_*.parquet"))))
+    todo = [t for t in tickers if t not in done]
+    log.info("splits: %d tickers with bars, %d done, %d to fetch", len(tickers), len(done), len(todo))
+    t0 = time.time()
+    stopped = False
+    ex = ThreadPoolExecutor(workers)
+    futs = {ex.submit(_one_split, t): t for t in todo}
+    with prog.open("a") as fh:
+        for n, f in enumerate(as_completed(futs), 1):
+            t = futs[f]
+            done[t] = f.result()
+            fh.write(json.dumps({"ticker": t, "splits": done[t]}) + "\n")
+            fh.flush()
+            if n % log_every == 0:
+                log.info("splits: %d/%d tickers, %.0fs", n, len(todo), time.time() - t0)
+            if budget_s is not None and time.time() - t0 > budget_s:
+                stopped = True
+                break
+    ex.shutdown(wait=False, cancel_futures=True)
+    status = {"tickers": len(tickers), "done": len(done), "stopped_on_budget": stopped, "seconds": round(time.time() - t0),
+              "errors": sum(1 for v in done.values() if v and v[0][0] == "error")}
+    if not stopped and len(done) >= len(tickers):
+        rows = [(t, d, r) for t, v in done.items() for d, r in v if d != "error"]
+        df = pd.DataFrame(rows, columns=["ticker", "date", "ratio"])
+        df["date"] = pd.to_datetime(df["date"])
+        df = df[df["ratio"] > 0].sort_values(["ticker", "date"]).reset_index(drop=True)
+        df.to_parquet(R.uni / "splits.parquet", index=False)
+        status["rows"] = int(len(df)); status["tickers_with_splits"] = int(df["ticker"].nunique())
+    (R.uni / "splits_status.json").write_text(json.dumps(status, indent=2))
+    log.info("splits: %s", status)
+    return status
+
+
+def load_splits() -> pd.DataFrame | None:
+    p = roots().uni / "splits.parquet"
+    return pd.read_parquet(p) if p.exists() else None
+
+
+def raw_close_array(A: dict, splits: pd.DataFrame) -> np.ndarray:
+    """`close` x product of the ratios of the splits dated after each session: the close on the
+    share basis of its own day, for the USD 2 floor diagnostic only."""
+    cal, tickers = A["cal"], A["tickers"]
+    factor = np.ones(A["close"].shape)
+    for t, g in splits.groupby("ticker"):
+        if t not in tickers:
+            continue
+        j = tickers.get_loc(t)
+        for d, r in zip(g["date"], g["ratio"]):
+            i = cal.searchsorted(pd.Timestamp(d))  # sessions strictly before the split date
+            factor[:i, j] *= r
+    return A["close"] * factor
+
+
 # ================================================================ stage: crypto (Binance bucket)
 S3 = "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"
 BV = "https://data.binance.vision"
@@ -659,6 +740,10 @@ def build_arrays(px: pd.DataFrame, lane: str, o1: pd.DataFrame | None = None, ho
             A[f"ret_{n}"] = C / shift_rows(C, -n) - 1.0
         A["high_250"] = _rolling_max(A["a_high"], 250)
         A["close_to_high_250"] = C / A["high_250"]
+        # wave 2 (rank mode on equities): 12-1 momentum, 52-week-high proximity on split-adjusted closes, 5-session return
+        A["ret_12_1"] = shift_rows(C, -21) / shift_rows(C, -252) - 1.0
+        A["close_to_max_close_250"] = A["close"] / _rolling_max(A["close"], 250)
+        A["ret_5"] = C / shift_rows(C, -5) - 1.0
     return A
 
 
