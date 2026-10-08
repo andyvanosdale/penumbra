@@ -1,0 +1,2 @@
+signal,variant,universe,era,flip_share_of_locked,admitted_by_raw_only,ejected_by_raw,ann_excess_base_locked_pp,z_gate_locked,ann_excess_base_raw_pp,z_gate_raw,relative_change,flag_moved_over_25pct
+2b,v1,uncapped,dev,0.04311245440273018,2768,56657,-3.60302134628507,-1.0125890737669874,-4.326692515324126,-1.286370219639464,-0.20085120222371267,False

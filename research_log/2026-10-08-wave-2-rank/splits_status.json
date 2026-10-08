@@ -1,0 +1,9 @@
+{
+  "tickers": 4156,
+  "done": 4156,
+  "stopped_on_budget": false,
+  "seconds": 4256,
+  "errors": 0,
+  "rows": 6896,
+  "tickers_with_splits": 2308
+}

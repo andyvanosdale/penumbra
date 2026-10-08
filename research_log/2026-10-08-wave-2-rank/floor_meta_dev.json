@@ -1,0 +1,20 @@
+{
+  "splits_rows": 6896,
+  "tickers_with_splits": 2308,
+  "eras": {
+    "dev": {
+      "locked_universe_days": 1378372,
+      "raw_universe_days": 1324483,
+      "flip_share_of_locked": 0.04311245440273018,
+      "admitted_by_raw_only": 2768,
+      "ejected_by_raw": 56657
+    },
+    "confirm": {
+      "locked_universe_days": 904391,
+      "raw_universe_days": 854759,
+      "flip_share_of_locked": 0.05525486211163092,
+      "admitted_by_raw_only": 170,
+      "ejected_by_raw": 49802
+    }
+  }
+}

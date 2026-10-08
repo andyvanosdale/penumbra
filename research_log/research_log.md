@@ -78,6 +78,30 @@ Copy this block for each new experiment. File naming: `research_log/YYYY-MM-DD-s
 
 ---
 
+## 2026-10-08 — Wave 2 of the screening program (2a, 2b, 2d; rank mode on daily bars): no graduate
+
+**Pre-registered:** b799b52 · **engine, signals, tests:** 2256c57 · **dev tables:** 8a93b1a · **ledger:**
+fb9bbc8 · **interpretation:** the commit after fb9bbc8 on `screen/wave-2`. Three classic
+cross-sectional equity signals (12-1 momentum, 52-week-high proximity, weekly reversal in liquid
+names), three variants each, as monthly or weekly long baskets against the equal-weight ranked
+set on two universes, dev 2010–2020, under a new rank-mode v2 protocol (z_gate = min(plain,
+Newey-West) ≥ 2.0, 5 pp net at base, a power statement with MDE80 on every row, random-slice,
+lag-250 and lag-20 placebos, a mirror slice, a price-matched comparator, a family-wise p and a
+graduate condition that needs delisting-complete data). 18 of 18 ledger rows below the bar: 12
+`null` (6 flagged underpowered at an MDE80 of 12 to 16 pp), 6 `insufficient`; no confirm run;
+zero graduates. 12-1 momentum +3.7 pp a year gross, +1.7 net (z +0.4; the three-month tranche
+variant +3.4 net, z +0.8), with 2020 supplying most of the z; the 52-week high flat gross and −3.6
+net at 86% monthly turnover; weekly reversal +8.3 pp gross (16 bps a week) and −1.0 net at 89%
+weekly turnover, the pre-stated cost-schedule result. No row is a characteristic or a price
+artifact (mirror and lag-250 placebos all within |z| < 1.5; price ratios 0.85 to 1.32). One
+engine fault caught by the pre-registered engine check before any result was read (the 2b V3
+random draws' pool) and corrected with the first-pass files kept. Holdout untouched; the confirm
+era unread. The USD 2 floor on the day's own share basis (split pull complete, 71 minutes) flips 4.3% of
+universe-days and moves the V1 nets by about 1 pp a year with no sign or verdict change. Full entry: `2026-10-08-wave-2-rank.md`; files in `2026-10-08-wave-2-rank/`; ledger:
+`ledger.md`; protocol amendment proposed in `penumbra-specs`.
+
+---
+
 ## 2026-10-07 — Intraday wave of the screening program (i1–i8 on 5-minute IEX bars): no graduate
 
 **Pre-registered:** d979e2a · **data layer and shift tests:** 685f776 · **basis correction, dev tables,
@@ -219,6 +243,18 @@ Running list of hard-won lessons. Add to it whenever you find a bug or a near-mi
   60 prints a session on 20 consecutive sessions leaves 29 of 732 `smallcap` names, and 25 to 40%
   of clock-time fills are a bar late. Session-shape rules on IEX bars are tests on the liquid tail
   only; a consolidated feed is the fix, and it costs money.
+- (2026-10-08, wave 2) A random-slice placebo must draw from the comparator set, not the
+  signal's ranked set: when a variant ranks within a subset (2b V3 inside the 2a top half), a
+  draw from the subset carries the subset's tilt and the placebo "passes" the signal's own
+  effect. The pre-registered engine check (draw medians near zero) is what caught it; keep
+  one in every rank-mode wave, with a tolerance that scales with the draw spread.
+- (2026-10-08, wave 2) On 130 monthly observations at a 5% tracking volatility the MDE80 at
+  z = 2 is 12 to 15 pp a year; the classic long-only premia are 2 to 5. A null here is a
+  statement about power first and the signal second, and must carry its MDE80; the only way
+  to decide a 3-pp premium is 500 or more months, i.e. the delisting-complete history.
+- (2026-10-08, wave 2) A single calendar year can supply most of a momentum row's z (2020:
+  +0.5 to +0.8 z-units, +36 to +46 pp a year); a sign-only artifact rule does not catch it. A
+  rule-4 condition on z without that year is load-bearing for any trend signal.
 - (2026-10-07, intraday wave) Intraday horizons measure zero very precisely (day-mean SEs of 1 to
   7 bps on the dense rows), so the 50-bps bar is purely the cost schedule's. An intraday row on
   this universe can only pass if a quote sample shows round trips near 10 bps; intraday screening

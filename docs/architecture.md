@@ -57,7 +57,7 @@ The labeler's output meets the features only inside the backtester.
 | `harness/runrecord.py` | Configuration hash, run log, dev-hash count, reproduce-from-snapshot | 03 Run record | 17 | built |
 | `harness/guards.py` | Holdout unlock; leakage-suite gate (no results written unless the leakage tests pass on this commit) | 02 Leakage tests, 03 | 18 (gate), 11 (holdout) | owed |
 | `experiments/` | Pre-registered one-off studies: the v1 free-data screen (`screen_free_data.py`, frozen), screen 2 (`screen_continuation_crypto.py`) | DECISIONS "Free-data screen" | 15, 39 | complete (null) |
-| `experiments/screen/` | The signal-screening engine (proposal 2026-09-30, section 8): `data.py` pulls, feature panels and parquet cache under `$PENUMBRA_DATA_ROOT/screen/`; `engine.py` event mode (fixed horizon), weekly rank mode, cost schedule, day-clustered z, placebo and planted controls; `signals/<name>.py` one per signal; `v1rule.py` the v1 rule for the regression; `movers.py`; `ledger.py` → `research_log/ledger.md`. CLI `python -m experiments.screen`. Standalone: imports nothing from `harness/`. Shift test per signal in `tests/screen/` | proposal §6–8 | wave 1, intraday wave | wave 1 complete (`screen/wave-1`); intraday wave complete (`screen/intraday`): `intraday_data.py` session tables from the 5-minute cache, `intraday_engine.py` clock-time fills and chained exits, `intraday_autopsy.py`, CLI `python -m experiments.screen.intraday_cli` |
+| `experiments/screen/` | The signal-screening engine (proposal 2026-09-30, section 8): `data.py` pulls, feature panels and parquet cache under `$PENUMBRA_DATA_ROOT/screen/`; `engine.py` event mode (fixed horizon), weekly rank mode, cost schedule, day-clustered z, placebo and planted controls; `signals/<name>.py` one per signal; `v1rule.py` the v1 rule for the regression; `movers.py`; `ledger.py` → `research_log/ledger.md`. CLI `python -m experiments.screen`. Standalone: imports nothing from `harness/`. Shift test per signal in `tests/screen/` | proposal §6–8 | wave 1, intraday wave, wave 2 | wave 1 complete (`screen/wave-1`); intraday wave complete (`screen/intraday`): `intraday_data.py` session tables from the 5-minute cache, `intraday_engine.py` clock-time fills and chained exits, `intraday_autopsy.py`, CLI `python -m experiments.screen.intraday_cli`; wave 2 complete (`screen/wave-2`): `engine.py` rank mode on equities (month-end and ISO week-end baskets, turnover-based cost, z_gate with Newey-West, MDE80, random-slice / lag-250 / mirror / price-matched controls, verdict algorithm), `signals/s2a_mom_12_1.py`, `s2b_high_52w.py`, `s2d_weekly_reversal.py`, `pull --splits` |
 | `legacy/` | The migrated news-project harness; only the day-of-week plumbing test uses it. Paths from `config.env` (writes under `$PENUMBRA_DATA_ROOT/legacy/`) | 07 Controls (last line) | 1, 2 | baseline, frozen |
 | `research_log/` | Pre-registration and outcome of every run | 03 | all runs | — |
 
@@ -263,6 +263,19 @@ signals (i1–i8) at clock-time fills on Alpaca's IEX 5-minute bars (`experiment
 overnight premium (+13 bps a night, gross). Intraday data did not change wave 1's conclusion;
 whether anything is tradable is now the cost calibration's question (the quote sample). Nothing
 is built.
+
+### Wave 2 of the screening program (2026-10-08)
+
+`research_log/2026-10-08-wave-2-rank.md`, ledger `research_log/ledger.md`: 12-1 momentum,
+52-week-high proximity and weekly reversal in liquid names, three variants each, as monthly or
+weekly long baskets on two equity universes (dev 2010–2020) under the rank-mode v2 protocol
+(z_gate ≥ 2.0, 5 pp net, MDE80 on every row, three placebos, a mirror, a price-matched comparator,
+a family-wise p, a graduate condition that needs delisting-complete data). 18 of 18 rows below
+the bar (12 `null`, 6 `insufficient`), no confirm run, zero graduates. Momentum +3.7 pp gross and
++1.7 net (z +0.4), the 52-week high flat and −3.6 net, weekly reversal +8.3 gross and −1.0 net:
+the schedule takes everything but low-turnover momentum, and 130 months cannot resolve a 3-pp
+premium (MDE80 12 to 15 pp). Nothing is built; the protocol amendment is proposed in
+`penumbra-specs`.
 
 ### Open items from the screen
 
