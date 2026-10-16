@@ -78,6 +78,25 @@ Copy this block for each new experiment. File naming: `research_log/YYYY-MM-DD-s
 
 ---
 
+## 2026-10-16 — Exploratory (not pre-registered): does EXEL's fundamental profile predict success elsewhere? Level profile no; deterioration yes; inflection weak
+
+**Owner-requested analysis, not a screen; not evidence.** Return decomposition of EXEL
+(earnings +479%, multiple −36%: margin expansion, R&D cut, buybacks after an activist),
+then three fixed profiles taken from its filings run on SEC XBRL point-in-time 10-Ks for
+3,122 companies, 16 vintages 2010–2025, entry the session after each filing date. The
+pre-move *level* profile is a coin flip (9 of 16 years positive, +4.5 pts mean). The
+*inflection* profile (margins up, costs down, shares down, revenue up) is positive in 8 of
+11 usable years (+2.6 pts, p ≈ 0.11), non-monotone, and strongest in the years it was
+found in. The *deterioration* profile (dilution, cash burn, losses, falling margin) trails
+by 14 pts on average, negative in 8 of 10 years; both change-based signals flip in the
+2020 and 2025 junk rallies. Placebo flat. Feeds a possible screen 3 (rank composite of
+fundamental momentum with the deterioration cohort as the exit) and a free point-in-time
+fundamentals pipeline. Full entry: `2026-10-16-exploratory-exel-profile.md`; write-ups,
+charts and tables in `2026-10-16-exploratory-exel-profile/`; code in
+`experiments/exploratory/exel_profile/`.
+
+---
+
 ## 2026-09-30 — Screen 2: post-shock continuation, crypto (issue 39): null; the idea is dropped
 
 **Pre-registered:** 3b3e98d · **code and results:** bef1c1c (branch `screen/continuation-crypto`).
